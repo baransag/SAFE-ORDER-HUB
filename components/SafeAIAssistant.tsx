@@ -43,8 +43,8 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
   // Voice Synthesis Configuration
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>('');
-  const [voiceRate, setVoiceRate] = useState<number>(0.92); // Calm, dignified cadence
-  const [voicePitch, setVoicePitch] = useState<number>(0.92); // Decent, mature, calm masculine pitch
+  const [voiceRate, setVoiceRate] = useState<number>(0.88); // Calm, deliberate, executive cadence
+  const [voicePitch, setVoicePitch] = useState<number>(0.80); // Deep, mature, masculine tone (avoids high/childish voice)
   const [listenLang, setListenLang] = useState<'ur-PK' | 'hi-IN' | 'en-US'>('ur-PK');
 
   // Real-time Order Monitoring
@@ -612,11 +612,11 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
 
         {/* Optional Voice & Mic Tuning Panel */}
         {showSettings && isExpanded && (
-          <div className="p-4 bg-teal-50/50 border-b border-teal-100/80 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs animate-in fade-in">
+          <div className="p-4 bg-teal-50/50 border-b border-teal-100/80 grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs animate-in fade-in">
             {/* Voice selector */}
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Select Male Urdu / English Voice:
+                Male Urdu / English Voice:
               </label>
               <select
                 value={selectedVoiceUri}
@@ -624,7 +624,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
                   setSelectedVoiceUri(e.target.value);
                   setTimeout(handleTestVoice, 100);
                 }}
-                className="w-full px-2.5 py-1.5 bg-white border border-teal-200 rounded-lg text-xs font-semibold text-slate-800"
+                className="w-full px-2 py-1.5 bg-white border border-teal-200 rounded-lg text-[11px] font-semibold text-slate-800"
               >
                 {availableVoices.map(v => (
                   <option key={v.voiceURI} value={v.voiceURI}>
@@ -634,10 +634,10 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
               </select>
             </div>
 
-            {/* Speaking Pace (Calm vs Normal) */}
+            {/* Speaking Pace (Calm vs Fast) */}
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Speech Pace / Speed: ({voiceRate}x)
+                Pace / Speed: ({voiceRate}x)
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -649,8 +649,29 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
                   onChange={(e) => setVoiceRate(Number(e.target.value))}
                   className="w-full accent-teal-600 cursor-pointer"
                 />
-                <span className="text-[11px] font-mono text-teal-800 font-bold">
-                  {voiceRate <= 0.90 ? 'Calm 🌸' : 'Standard'}
+                <span className="text-[10px] font-mono text-teal-800 font-bold whitespace-nowrap">
+                  {voiceRate <= 0.88 ? 'Calm 🕊️' : 'Standard'}
+                </span>
+              </div>
+            </div>
+
+            {/* Voice Tone & Depth (Pitch) */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Tone Depth: ({voicePitch.toFixed(2)})
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0.65"
+                  max="1.10"
+                  step="0.05"
+                  value={voicePitch}
+                  onChange={(e) => setVoicePitch(Number(e.target.value))}
+                  className="w-full accent-teal-600 cursor-pointer"
+                />
+                <span className="text-[10px] font-mono text-teal-800 font-bold whitespace-nowrap">
+                  {voicePitch <= 0.85 ? 'Deep & Mature 🎙️' : 'Standard'}
                 </span>
               </div>
             </div>
@@ -665,7 +686,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
                   type="button"
                   onClick={() => setListenLang('ur-PK')}
                   className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all ${
-                    listenLang === 'ur-PK' ? 'bg-teal-600 text-white border-teal-600 shadow-xs' : 'bg-white text-slate-700 border-slate-200'
+                    listenLang === 'ur-PK' ? 'bg-slate-900 text-teal-300 border-slate-900 shadow-xs' : 'bg-white text-slate-700 border-slate-200'
                   }`}
                 >
                   🇵🇰 Urdu / Roman
@@ -674,7 +695,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
                   type="button"
                   onClick={() => setListenLang('en-US')}
                   className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all ${
-                    listenLang === 'en-US' ? 'bg-teal-600 text-white border-teal-600 shadow-xs' : 'bg-white text-slate-700 border-slate-200'
+                    listenLang === 'en-US' ? 'bg-slate-900 text-teal-300 border-slate-900 shadow-xs' : 'bg-white text-slate-700 border-slate-200'
                   }`}
                 >
                   🌐 English / Mix
