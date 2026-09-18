@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 68" fill="none">
+  <defs>
+    <linearGradient id="shieldGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1EAE98" />
+      <stop offset="100%" stop-color="#0F766E" />
+    </linearGradient>
+    <linearGradient id="accentGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A9F1DF" />
+      <stop offset="100%" stop-color="#6FD6FF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer Shield Frame -->
+  <path d="M32 0 L60 12 L60 40 C60 54 48 62 32 66 C16 62 4 54 4 40 L4 12 Z" fill="url(#shieldGrad2)" />
+  
+  <!-- Inner Frame -->
+  <path d="M32 6 L54 16 L54 38 C54 49 44 56 32 60 C20 56 10 49 10 38 L10 16 Z" fill="#0F172A" opacity="0.25" />
+  
+  <!-- Waterproofing Droplet -->
+  <path d="M32 16 C32 16 44 32 44 40 C44 46.6 38.6 52 32 52 C25.4 52 20 46.6 20 40 C20 32 32 16 32 16 Z" fill="url(#accentGrad2)" />
+  <circle cx="32" cy="40" r="4.5" fill="#FFFFFF" />
+  <path d="M28 28 L36 28 M32 24 L32 32" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" opacity="0.8" />
+</svg>

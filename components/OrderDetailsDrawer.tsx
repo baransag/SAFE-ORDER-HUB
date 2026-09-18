@@ -1,0 +1,504 @@
+'use client';
+
+import React, { useState } from 'react';
+import { 
+  X, 
+  MapPin, 
+  Phone, 
+  MessageSquare, 
+  Clock, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Send, 
+  FileText, 
+  Edit3, 
+  User, 
+  Truck, 
+  Building,
+  Calendar,
+  CreditCard,
+  ExternalLink,
+  Share2
+} from 'lucide-react';
+import { Order, OrderStatus, Role } from '@/lib/types';
+import OrderStatusBadge from './OrderStatusBadge';
+
+interface Props {
+  order: Order | null;
+  isOpen: boolean;
+  onClose: () => void;
+  currentUserRole?: Role;
+  onOrderUpdated: () => void;
+}
+
+export default function OrderDetailsDrawer({
+  order,
+  isOpen,
+  onClose,
+  currentUserRole,
+  onOrderUpdated,
+}: Props) {
+  const [updating, setUpdating] = useState(false);
+  const [showRateEdit, setShowRateEdit] = useState(false);
+  const [editRates, setEditRates] = useState<{ [id: string]: number }>({});
+  const [reviewNote, setReviewNote] = useState('');
+  const [statusNote, setStatusNote] = useState('');
+
+  if (!isOpen || !order) return null;
+
+  const isFullAccess = currentUserRole && ['BOSS', 'CONTROLLER', 'MANAGER'].includes(currentUserRole);
+
+  const handleUpdateStatus = async (newStatus: OrderStatus) => {
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'UPDATE_STATUS',
+          status: newStatus,
+          note: statusNote || undefined,
+        }),
+      });
+      if (res.ok) {
+        setStatusNote('');
+        onOrderUpdated();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleSaveRates = async () => {
+    setUpdating(true);
+    try {
+      const updatedItems = order.items.map(item => ({
+        id: item.id,
+        offeredRate: editRates[item.id] !== undefined ? editRates[item.id] : item.offeredRate,
+        quantity: item.quantity,
+      }));
+
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'UPDATE_RATES',
+          updatedItems,
+          reviewNote: reviewNote || 'Approved by Controller / Manager',
+        }),
+      });
+
+      if (res.ok) {
+        setShowRateEdit(false);
+        onOrderUpdated();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const [copied, setCopied] = useState(false);
+
+  const handlePostToGroup = () => {
+    fetch(`/api/orders/${order.id}`)
+      .then(r => r.json())
+      .then(d => {
+        const msg = d.formattedMessage || `🔔 ORDER: ${order.orderNumber}`;
+        navigator.clipboard.writeText(msg).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 3500);
+        });
+        window.open(d.whatsappGroupUrl || 'https://chat.whatsapp.com/DEbbiG4JnLkCRaNVrSIieK', '_blank');
+      });
+  };
+
+  const handleOpenWhatsApp = () => {
+    fetch(`/api/orders/${order.id}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.whatsappShareUrl || d.whatsappLink) {
+          window.open(d.whatsappShareUrl || d.whatsappLink, '_blank');
+        }
+      });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs transition-opacity" 
+        onClick={onClose} 
+      />
+
+      {/* Slide-over Content */}
+      <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl overflow-y-auto flex flex-col z-10 animate-in slide-in-from-right duration-200">
+        
+        {/* Header */}
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-100 flex items-center justify-between z-20">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-mono font-bold text-base text-slate-900">{order.orderNumber}</span>
+              <OrderStatusBadge status={order.status} size="sm" />
+              {order.urgency === 'URGENT' && (
+                <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                  ⚡ URGENT
+                </span>
+              )}
+              {order.urgency === 'CRITICAL' && (
+                <span className="text-[10px] bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full">
+                  🔥 CRITICAL
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500">
+              Booked on {new Date(order.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePostToGroup}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all"
+              title="Copy formatted order & open SAFE SOLUTIONS WhatsApp Group"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{copied ? '✓ Copied & Opening Group!' : 'Post to Group'}</span>
+            </button>
+            <button
+              onClick={handleOpenWhatsApp}
+              className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs transition-all"
+              title="Direct WhatsApp Share"
+            >
+              <Share2 className="w-4 h-4 text-emerald-600" />
+            </button>
+            <button 
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content Body */}
+        <div className="p-6 space-y-6 flex-1">
+          
+          {/* Rate Warning Banner if in review */}
+          {order.status === 'RATE_REVIEW' && (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">Rate Approval Required</h4>
+                  <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                    This order was submitted with a rate below standard approved pricing.
+                    {isFullAccess ? ' As Boss/Controller/Manager, you can approve or edit the rate below.' : ' Awaiting Controller or Manager review.'}
+                  </p>
+                  {isFullAccess && !showRateEdit && (
+                    <button
+                      onClick={() => {
+                        const initial: { [id: string]: number } = {};
+                        order.items.forEach(i => initial[i.id] = i.offeredRate);
+                        setEditRates(initial);
+                        setShowRateEdit(true);
+                      }}
+                      className="mt-3 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-1.5"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      Edit Rates & Approve Order
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Rate Edit Panel for Controller / Manager */}
+          {showRateEdit && (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Modify Rates</span>
+                <button 
+                  onClick={() => setShowRateEdit(false)}
+                  className="text-xs text-slate-400 hover:text-slate-600"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              {order.items.map(item => (
+                <div key={item.id} className="flex items-center justify-between text-xs gap-3">
+                  <div>
+                    <span className="font-semibold text-slate-800">{item.productName}</span>
+                    <span className="text-slate-400 ml-1">({item.quantity} {item.unit})</span>
+                    <div className="text-[10px] text-slate-400">Std Rate: Rs. {item.standardRate}</div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-500 text-xs">Rs.</span>
+                    <input
+                      type="number"
+                      value={editRates[item.id] !== undefined ? editRates[item.id] : item.offeredRate}
+                      onChange={(e) => setEditRates({ ...editRates, [item.id]: Number(e.target.value) })}
+                      className="w-24 px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-right"
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <div>
+                <input
+                  type="text"
+                  placeholder="Review note (e.g. Special bulk discount approved)"
+                  value={reviewNote}
+                  onChange={(e) => setReviewNote(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs placeholder:text-slate-400"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={handleSaveRates}
+                  disabled={updating}
+                  className="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all"
+                >
+                  {updating ? 'Saving...' : 'Confirm Rates & Approve Order'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Customer & Delivery Card */}
+          <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Customer & Site</span>
+              <span className="text-[10px] bg-slate-200/80 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                {order.customerType} CLIENT
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-0.5">
+                  <Building className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Company / Site</span>
+                </div>
+                <div className="text-sm font-bold text-slate-800">{order.companyName}</div>
+                <div className="text-xs text-slate-600 mt-0.5">Contact: {order.customerName}</div>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-0.5">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Phone & WhatsApp</span>
+                </div>
+                <div className="text-xs font-semibold text-slate-800">{order.customerPhone}</div>
+                {order.customerWhatsapp && (
+                  <div className="text-[11px] text-emerald-600 font-medium">
+                    WhatsApp: {order.customerWhatsapp}
+                  </div>
+                )}
+              </div>
+
+              <div className="sm:col-span-2">
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-0.5">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Delivery Address ({order.city})</span>
+                </div>
+                <div className="text-xs text-slate-700 font-medium leading-relaxed">
+                  {order.deliveryAddress}
+                </div>
+                {order.mapsUrl && (
+                  <a
+                    href={order.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600 hover:text-teal-700 hover:underline mt-1"
+                  >
+                    <span>📍 View Google Maps Location</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Product Items Table */}
+          <div className="space-y-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ordered Products</span>
+            <div className="border border-slate-100 rounded-2xl overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Product</th>
+                    <th className="px-3 py-2 font-medium text-center">Qty</th>
+                    <th className="px-3 py-2 font-medium text-right">Rate</th>
+                    <th className="px-3 py-2 font-medium text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {order.items.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/50">
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold text-slate-800">{item.productName}</div>
+                        <div className="text-[10px] text-slate-400">{item.packing}</div>
+                        {item.isSpecialRate && (
+                          <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-bold">
+                            Special Rate
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-center font-medium text-slate-700">
+                        {item.quantity} {item.unit}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-medium text-slate-700">
+                        Rs. {item.offeredRate.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-bold text-slate-900">
+                        Rs. {item.totalAmount.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Financial Totals */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white space-y-1.5">
+              <div className="flex justify-between text-xs text-slate-300">
+                <span>Subtotal:</span>
+                <span>Rs. {order.subtotal.toLocaleString()}</span>
+              </div>
+              {order.discountTotal > 0 && (
+                <div className="flex justify-between text-xs text-emerald-400">
+                  <span>Special Discount:</span>
+                  <span>- Rs. {order.discountTotal.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-bold text-white pt-1.5 border-t border-slate-700/60">
+                <span>Grand Total:</span>
+                <span className="text-emerald-300">Rs. {order.grandTotal.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-xs text-slate-400 pt-1">
+                <span>Payment Terms:</span>
+                <span className="font-semibold text-slate-200">
+                  {order.paymentStatus} {order.paymentRemarks && `(${order.paymentRemarks})`}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sales & Logistics Card */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">
+                Order Taken By
+              </span>
+              <div className="font-bold text-slate-800">{order.orderTakenByName}</div>
+              <div className="text-[11px] text-slate-500">{order.orderTakenByPhone}</div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">
+                Required Delivery
+              </span>
+              <div className="font-bold text-slate-800">{order.requiredDeliveryDate}</div>
+              <div className="text-[11px] text-slate-500">Urgency: {order.urgency}</div>
+            </div>
+          </div>
+
+          {order.remarks && (
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+              <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-0.5">
+                Special Instructions / Remarks
+              </span>
+              <p className="text-slate-700 italic">{order.remarks}</p>
+            </div>
+          )}
+
+          {/* Management Status Controls */}
+          {isFullAccess && (
+            <div className="p-4 rounded-2xl bg-teal-50/50 border border-teal-100 space-y-3">
+              <div className="text-xs font-bold text-teal-900 uppercase tracking-wider">
+                Management Status Controls
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {order.status !== 'CONFIRMED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('CONFIRMED')}
+                    disabled={updating}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                  >
+                    ✓ Confirm Order
+                  </button>
+                )}
+                {order.status !== 'PREPARING' && order.status !== 'DELIVERED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('PREPARING')}
+                    disabled={updating}
+                    className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                  >
+                    📦 Mark Preparing
+                  </button>
+                )}
+                {order.status !== 'DISPATCHED' && order.status !== 'DELIVERED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('DISPATCHED')}
+                    disabled={updating}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                  >
+                    🚚 Mark Dispatched
+                  </button>
+                )}
+                {order.status !== 'DELIVERED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('DELIVERED')}
+                    disabled={updating}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                  >
+                    🎉 Mark Delivered
+                  </button>
+                )}
+                {order.status !== 'CANCELLED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('CANCELLED')}
+                    disabled={updating}
+                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all"
+                  >
+                    Cancel Order
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Activity / Audit History Timeline */}
+          <div className="space-y-3 pt-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Audit & History Log</span>
+            <div className="space-y-3 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+              {order.history.map((h, i) => (
+                <div key={h.id || i} className="relative flex items-start gap-3 pl-2 text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full bg-teal-500 ring-4 ring-white shrink-0 mt-1" />
+                  <div className="flex-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="font-semibold text-slate-800">{h.changedByName}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="text-slate-600">{h.note}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}

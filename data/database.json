@@ -1,0 +1,202 @@
+{
+  "users": [
+    {
+      "id": "usr_boss",
+      "name": "Asif",
+      "email": "boss@safesolutions.com",
+      "passwordHash": "$2b$10$1RJQUXNnYflowxHCLsgdgOLerPmr3xWLwrCPyN9rYJ23RxSyEa21C",
+      "phone": "0300-0000000",
+      "designation": "Managing Director / Boss",
+      "role": "BOSS",
+      "active": true,
+      "createdAt": "2026-09-18T06:02:23.178Z",
+      "avatar": "/assest/images/asif.jpeg"
+    },
+    {
+      "id": "usr_controller",
+      "name": "M. Husnain Farooq",
+      "email": "baransag68@gmail.com",
+      "passwordHash": "$2b$10$1RJQUXNnYflowxHCLsgdgOLerPmr3xWLwrCPyN9rYJ23RxSyEa21C",
+      "phone": "03468760963",
+      "designation": "Controller (Operations & Finance)",
+      "role": "CONTROLLER",
+      "active": true,
+      "createdAt": "2026-09-18T06:02:23.178Z",
+      "avatar": "/assest/images/husnain.jpeg"
+    },
+    {
+      "id": "usr_manager",
+      "name": "Samaira Mubashar",
+      "email": "sm.bajwa786fsd@gmail.com",
+      "passwordHash": "$2b$10$1RJQUXNnYflowxHCLsgdgOLerPmr3xWLwrCPyN9rYJ23RxSyEa21C",
+      "phone": "03006646124",
+      "designation": "Manager Account & Finance",
+      "role": "MANAGER",
+      "active": true,
+      "createdAt": "2026-09-18T06:02:23.178Z",
+      "avatar": "/assest/images/samira.jpeg"
+    },
+    {
+      "id": "usr_shahzaib",
+      "name": "Engr. Shahzaib Ahmad",
+      "email": "Zaiberana37@gmail.com",
+      "passwordHash": "$2b$10$1RJQUXNnYflowxHCLsgdgOLerPmr3xWLwrCPyN9rYJ23RxSyEa21C",
+      "phone": "03007684761",
+      "designation": "Marketing Executive",
+      "role": "MARKETING_EXECUTIVE",
+      "vehicle": "BBE-5688",
+      "active": true,
+      "createdAt": "2026-09-18T06:02:23.178Z",
+      "avatar": "/assest/images/shahzaib-ahmad.jpeg"
+    },
+    {
+      "id": "usr_shahbaz",
+      "name": "Shahbaz Ahmed",
+      "email": "shabazbutt1132@gmail.com",
+      "passwordHash": "$2b$10$1RJQUXNnYflowxHCLsgdgOLerPmr3xWLwrCPyN9rYJ23RxSyEa21C",
+      "phone": "03237684200",
+      "designation": "Application Supervisor & Sales Person",
+      "role": "SALES_PERSON",
+      "vehicle": "AGN-1227-21",
+      "active": true,
+      "createdAt": "2026-09-18T06:02:23.178Z",
+      "avatar": "/assest/images/shahbaz-ahmad.jpeg"
+    },
+    {
+      "id": "usr_adnan",
+      "name": "Adnan Ali",
+      "email": "mianadnanali88@gmail.com",
+      "passwordHash": "$2b$10$1RJQUXNnYflowxHCLsgdgOLerPmr3xWLwrCPyN9rYJ23RxSyEa21C",
+      "phone": "03217684400",
+      "designation": "Area Sales Manager",
+      "role": "AREA_SALES_MANAGER",
+      "vehicle": "AHV 378",
+      "active": true,
+      "createdAt": "2026-09-18T06:02:23.178Z",
+      "avatar": "/assest/images/adnan-ali.jpeg"
+    },
+    {
+      "id": "usr_haseeb",
+      "name": "Engr. Haseeb Ali",
+      "email": "haseebalicivil11@gmail.com",
+      "passwordHash": "$2b$10$1RJQUXNnYflowxHCLsgdgOLerPmr3xWLwrCPyN9rYJ23RxSyEa21C",
+      "phone": "03058477264",
+      "designation": "Area Sales Person",
+      "role": "SALES_PERSON",
+      "active": true,
+      "createdAt": "2026-09-18T06:02:23.178Z",
+      "avatar": "/assest/images/haseeb-ali.jpeg"
+    },
+    {
+      "id": "usr_tajammul",
+      "name": "Tajammul Mushtaq",
+      "email": "tajammulbajwa545@gmail.com",
+      "passwordHash": "$2b$10$1RJQUXNnYflowxHCLsgdgOLerPmr3xWLwrCPyN9rYJ23RxSyEa21C",
+      "phone": "03217684500",
+      "designation": "Area Sales Manager",
+      "role": "AREA_SALES_MANAGER",
+      "vehicle": "FD-17-84",
+      "active": true,
+      "createdAt": "2026-09-18T06:02:23.178Z",
+      "avatar": "/assest/images/tajammul.jpeg"
+    }
+  ],
+  "products": [],
+  "customers": [
+    {
+      "name": "Muhammad Nadeem",
+      "companyName": "husnain farooq ",
+      "phone": "012345678",
+      "whatsapp": "4565642145121",
+      "city": "Faisalabad",
+      "deliveryAddress": "Shop #15, Shaheed-e-Millat Market, Gulistan Colony #02,",
+      "mapsUrl": "",
+      "customerType": "EXISTING",
+      "id": "cust_1789712411912"
+    }
+  ],
+  "orders": [
+    {
+      "customerId": "cust_1789712411912",
+      "customerName": "Muhammad Nadeem",
+      "companyName": "husnain farooq ",
+      "customerPhone": "012345678",
+      "customerWhatsapp": "4565642145121",
+      "city": "Faisalabad",
+      "deliveryAddress": "Shop #15, Shaheed-e-Millat Market, Gulistan Colony #02,",
+      "mapsUrl": "",
+      "customerType": "EXISTING",
+      "items": [
+        {
+          "id": "itm_1789712411915_g5rrx",
+          "productId": "prd_pu_sealant",
+          "productName": "PU Sealant",
+          "packing": "600 ml Sausage",
+          "unit": "Sausage",
+          "quantity": 10,
+          "standardRate": 1250,
+          "offeredRate": 1250,
+          "discount": 0,
+          "totalAmount": 12500,
+          "isSpecialRate": false
+        }
+      ],
+      "subtotal": 12500,
+      "discountTotal": 0,
+      "grandTotal": 12500,
+      "paymentStatus": "ADVANCE",
+      "paymentRemarks": "cheque on site i received ",
+      "requiredDeliveryDate": "2026-09-19",
+      "urgency": "CRITICAL",
+      "status": "NEW",
+      "specialRateApproved": true,
+      "orderTakenById": "usr_controller",
+      "orderTakenByName": "M. Husnain Farooq",
+      "orderTakenByEmail": "baransag68@gmail.com",
+      "orderTakenByPhone": "03468760963",
+      "remarks": "",
+      "id": "ord_1789712411917",
+      "orderNumber": "SS-ORD-2026-00001",
+      "createdAt": "2026-09-18T06:20:11.917Z",
+      "updatedAt": "2026-09-18T06:20:11.917Z",
+      "history": [
+        {
+          "id": "hist_1789712411917",
+          "orderId": "ord_1789712411917",
+          "newStatus": "NEW",
+          "changedById": "usr_controller",
+          "changedByName": "M. Husnain Farooq",
+          "timestamp": "2026-09-18T06:20:11.917Z",
+          "note": "Order booked by M. Husnain Farooq"
+        }
+      ]
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif_1789712411917",
+      "title": "🔔 New Order Booked",
+      "message": "M. Husnain Farooq booked SS-ORD-2026-00001 for husnain farooq  (Faisalabad) — Rs. 12,500",
+      "orderId": "ord_1789712411917",
+      "orderNumber": "SS-ORD-2026-00001",
+      "type": "NEW_ORDER",
+      "read": false,
+      "createdAt": "2026-09-18T06:20:11.917Z",
+      "recipientRoles": [
+        "BOSS",
+        "CONTROLLER",
+        "MANAGER"
+      ]
+    }
+  ],
+  "settings": {
+    "id": "sys_settings",
+    "companyName": "SAFE SOLUTIONS — Construction Chemicals & Waterproofing",
+    "officeWhatsappNumber": "923006646124",
+    "whatsappGroupInviteUrl": "https://chat.whatsapp.com/DEbbiG4JnLkCRaNVrSIieK",
+    "currency": "PKR",
+    "rateWarningTolerancePercent": 5,
+    "updatedAt": "2026-09-18T06:19:13.628Z"
+  },
+  "orderCounter": 1
+}

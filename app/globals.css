@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+:root {
+  --bg-main: #F7F9FC;
+  --card-bg: rgba(255, 255, 255, 0.96);
+  --card-border: rgba(226, 232, 240, 0.8);
+  --primary-accent: #1EAE98;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: #0F172A;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Gradient Presets from Design Direction */
+.grad-mint-blush {
+  background: linear-gradient(135deg, #A9F1DF 0%, #FFBBBB 100%);
+}
+
+.grad-lavender-emerald {
+  background: linear-gradient(135deg, #D8B5FF 0%, #1EAE98 100%);
+}
+
+.grad-lime-sky {
+  background: linear-gradient(135deg, #BFF098 0%, #6FD6FF 100%);
+}
+
+.grad-lime-pink {
+  background: linear-gradient(135deg, #C6EA8D 0%, #FE90AF 100%);
+}
+
+.grad-champagne-coral {
+  background: linear-gradient(135deg, #F1EAB9 0%, #FF8C8C 100%);
+}
+
+.grad-coral-violet {
+  background: linear-gradient(135deg, #EA8D8D 0%, #A890FE 100%);
+}
+
+.grad-electric-cream {
+  background: linear-gradient(135deg, #00B7FF 0%, #FFFFC7 100%);
+}
+
+.grad-pink-cyan {
+  background: linear-gradient(135deg, #FCA5F1 0%, #B5FFFF 100%);
+}
+
+.grad-magenta-yellow {
+  background: linear-gradient(135deg, #D74177 0%, #FFE98A 100%);
+}
+
+.grad-teal-raspberry {
+  background: linear-gradient(135deg, #38ADAE 0%, #CD295A 100%);
+}
+
+/* Subtle Glow and Card styles */
+.korean-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  border-radius: 22px;
+  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.korean-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px -12px rgba(15, 23, 42, 0.09), 0 8px 16px -4px rgba(15, 23, 42, 0.04);
+}
+
+.glass-nav {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+}
+
+.glass-bottom-bar {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 12px 35px -8px rgba(15, 23, 42, 0.12);
+  border-radius: 9999px;
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Pulse badge animation */
+@keyframes soft-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
