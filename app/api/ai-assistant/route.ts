@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       }
 
       const empDisplay = targetOrders[0]?.orderTakenByName || employeeName || 'Employee';
-      const spoken = `Ji! ${empDisplay} ke ${updatedOrders.length} order(s) ko ${targetStatus} mark kar diya gaya hai. System updated!`;
+      const spoken = `Ji Controller sahib! ${empDisplay} ke ${updatedOrders.length} orders ko ${targetStatus} mark kar diya gaya hai. Record mukammal tor par update ho chuka hai.`;
 
       return NextResponse.json({
         success: true,
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           success: true,
           updatedCount: updated.length,
-          spokenText: `Ji bilkul! ${matchedEmp} ke ${updated.length} order(s) ko '${targetStatus}' mark kar diya gaya hai. Record updated!`,
+          spokenText: `Ji bilkul Controller sahib! ${matchedEmp} ke ${updated.length} orders ko '${targetStatus}' mark kar diya gaya hai. Record update ho chuka hai.`,
           message: `Updated ${updated.length} orders for ${matchedEmp} to ${targetStatus}`,
         });
       }
@@ -270,7 +270,7 @@ export async function POST(req: NextRequest) {
           order: targetOrder,
           messageText: text,
           whatsappUrl,
-          spokenText: `Client ${targetOrder.customerName} ke liye Thank You text ready hai. Controller phone number ${cPhone} shamil kar diya hai.`,
+          spokenText: `Client ${targetOrder.customerName} ke liye Thank You text tayyar hai. Controller phone number ${cPhone} shaamil kar diya hai.`,
         });
       }
 
@@ -279,15 +279,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           success: true,
           actionType: 'summary',
-          spokenText: `Operations Summary: Total ${allOrders.length} orders booked hain, jinki kul raqam Rs. ${totalRev.toLocaleString()} hai. Tamam sales team dashboards ka full access active hai.`,
+          spokenText: `Executive report: Total ${allOrders.length} orders booked hain, jinki kul raqam Rs. ${totalRev.toLocaleString()} hai. Tamam sales team dashboards ka full access active hai.`,
         });
       }
 
       // Default fallback conversational response
       return NextResponse.json({
         success: true,
-        spokenText: `Main Safe Operations AI hoon. Aap mujh se kisi bhi employee ke orders deliver karne, client ko Thank You message bhejne, ya team status lene ka keh sakte hain.`,
-        message: 'Safe AI listening...',
+        spokenText: `Main Safe Solutions ka Operations Officer hoon. Aap mujhe kisi bhi employee ke orders deliver karne, client ko Thank You message bhejne, ya team status lene ka hukam de sakte hain.`,
+        message: 'Safe AI Officer listening...',
       });
     }
 

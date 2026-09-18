@@ -18,7 +18,9 @@ import {
   Copy,
   AlertCircle,
   X,
-  Radio
+  Radio,
+  Sliders,
+  Heart
 } from 'lucide-react';
 import { User, Order } from '@/lib/types';
 
@@ -31,11 +33,20 @@ interface Props {
 export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOrder }: Props) {
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [commandInput, setCommandInput] = useState('');
+  const [interimText, setInterimText] = useState('');
   const [loading, setLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   
+  // Voice Synthesis Configuration
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>('');
+  const [voiceRate, setVoiceRate] = useState<number>(0.92); // Calm, dignified cadence
+  const [voicePitch, setVoicePitch] = useState<number>(0.92); // Decent, mature, calm masculine pitch
+  const [listenLang, setListenLang] = useState<'ur-PK' | 'hi-IN' | 'en-US'>('ur-PK');
+
   // Real-time Order Monitoring
   const [latestNewOrder, setLatestNewOrder] = useState<Order | null>(null);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
@@ -60,10 +71,80 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     copied: false,
   });
 
-  // Speech Recognition ref
+  // Speech Recognition Ref
   const recognitionRef = useRef<any>(null);
 
-  // 1. Play Soft Audio Chime via Web Audio API
+  // Load High Quality Voices on Mount
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    const populateVoices = () => {
+      const allVoices = window.speechSynthesis.getVoices();
+      if (!allVoices || allVoices.length === 0) return;
+
+      // Filter and sort prioritizing natural, loud, calm, decent male Urdu/English voices
+      const sorted = [...allVoices].sort((a, b) => {
+        const aScore = getVoiceScore(a);
+        const bScore = getVoiceScore(b);
+        return bScore - aScore;
+      });
+
+      setAvailableVoices(sorted);
+
+      if (!selectedVoiceUri && sorted.length > 0) {
+        // Automatically select the highest scoring male Urdu / English natural voice
+        setSelectedVoiceUri(sorted[0].voiceURI);
+      }
+    };
+
+    populateVoices();
+    window.speechSynthesis.onvoiceschanged = populateVoices;
+  }, [selectedVoiceUri]);
+
+  // Scoring function for voice quality (prioritizes loud, calm, decent male Urdu/English voices)
+  const getVoiceScore = (v: SpeechSynthesisVoice) => {
+    let score = 0;
+    const name = v.name.toLowerCase();
+    const lang = v.lang.toLowerCase();
+
+    // 1. Male Urdu / Pakistani voices (e.g. Microsoft Asad Online Natural)
+    if (name.includes('asad') || (lang.includes('ur') && !name.includes('gul') && !name.includes('female'))) {
+      score += 120;
+    }
+
+    // 2. Natural / Neural male voices with clear Indian/Pakistani/British diction
+    if (name.includes('madhur')) score += 80;
+    if (name.includes('oliver') || name.includes('ryan') || name.includes('guy') || name.includes('george')) {
+      score += 60;
+    }
+
+    // 3. General natural / neural voices
+    if (name.includes('natural') || name.includes('online')) score += 40;
+    if (name.includes('google')) score += 30;
+
+    // 4. Languages
+    if (lang.startsWith('ur') || lang.startsWith('hi')) score += 35;
+    if (lang.includes('gb') || lang.includes('uk')) score += 20;
+
+    // Deduct points for female voices because user requested a loud, calm, decent male speaker
+    if (
+      name.includes('female') || 
+      name.includes('zira') || 
+      name.includes('sonia') || 
+      name.includes('natasha') || 
+      name.includes('jenny') || 
+      name.includes('gul') || 
+      name.includes('samantha') || 
+      name.includes('swara') ||
+      name.includes('heera')
+    ) {
+      score -= 60;
+    }
+
+    return score;
+  };
+
+  // 1. Play Soft Dignified Executive Chime
   const playChime = () => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -72,23 +153,23 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
+      osc.type = 'triangle'; // Warm, authoritative tone
+      osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+      osc.frequency.exponentialRampToValueAtTime(554.37, ctx.currentTime + 0.15); // C#5
 
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime); // Loud & clear
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.35);
+      osc.stop(ctx.currentTime + 0.4);
     } catch {
-      // AudioContext might be blocked until user interaction
+      // AudioContext fallback
     }
   };
 
-  // 2. Sweet Female Voice Engine (Web Speech Synthesis)
+  // 2. Loud, Calm & Decent Male Urdu Voice Synthesizer
   const speakVoice = (text: string) => {
     if (!isVoiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) {
       return;
@@ -96,29 +177,35 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
 
     try {
       playChime();
-      window.speechSynthesis.cancel(); // cancel any active speech
+      window.speechSynthesis.cancel(); // Stop any overlapping speech
 
       const utterance = new SpeechSynthesisUtterance(text);
       const voices = window.speechSynthesis.getVoices();
 
-      // Find female Urdu / Hindi / British / English female voice
-      const preferredVoice = voices.find(v => 
-        (v.name.includes('Google हिन्दी') || 
-         v.name.includes('Heera') || 
-         v.name.includes('Zira') || 
-         v.name.includes('Female') || 
-         v.name.includes('Samantha') || 
-         v.name.includes('Karen') || 
-         v.lang.startsWith('ur') || 
-         v.lang.startsWith('hi'))
-      ) || voices.find(v => v.lang.startsWith('en'));
+      // Find chosen voice or best male candidate
+      let voiceToUse = voices.find(v => v.voiceURI === selectedVoiceUri);
 
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
+      if (!voiceToUse) {
+        voiceToUse = voices.find(v => {
+          const name = v.name.toLowerCase();
+          return (
+            name.includes('asad') || 
+            name.includes('madhur') || 
+            name.includes('oliver') || 
+            name.includes('ryan') || 
+            name.includes('natural')
+          );
+        }) || voices[0];
       }
 
-      utterance.rate = 0.95; // Clear and articulate
-      utterance.pitch = 1.1; // Sweet female pitch
+      if (voiceToUse) {
+        utterance.voice = voiceToUse;
+      }
+
+      // Loud, calm, dignified pacing and pitch
+      utterance.rate = voiceRate; // 0.92 for calm, deliberate cadence
+      utterance.pitch = voicePitch; // 0.92 for deep, masculine, calm tone
+      utterance.volume = 1.0; // Loud and crystal clear
       
       window.speechSynthesis.speak(utterance);
     } catch (err) {
@@ -128,11 +215,12 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
 
   // 3. Test Voice Button
   const handleTestVoice = () => {
-    speakVoice("Assalam-o-Alaikum Controller sahib! Main Safe Solutions AI hoon. Naya order aate hi main aapko foran bol kar aagah karongi.");
-    setAiResponse("🔊 Voice Engine Test: 'Assalam-o-Alaikum Controller sahib! Main Safe Solutions AI hoon. Naya order aate hi main aapko foran bol kar aagah karongi.'");
+    const greeting = "Assalam-o-Alaikum Controller sahib! Main Safe Solutions ka Operations Officer hoon. Loud aur calm Urdu aawaz mein aap ka har order foran process karoonga.";
+    speakVoice(greeting);
+    setAiResponse("🎙️ Voice Test: 'Assalam-o-Alaikum Controller sahib! Main Safe Solutions ka Operations Officer hoon. Loud aur calm Urdu aawaz mein aap ka har order foran process karoonga.'");
   };
 
-  // 4. Real-time Order Watcher (Polls every 6 seconds)
+  // 4. Real-time Order Monitoring (Polls every 6 seconds)
   useEffect(() => {
     const checkOrders = async () => {
       try {
@@ -142,88 +230,106 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
         const orders: Order[] = data.orders || [];
 
         if (isInitialLoadRef.current) {
-          // On first load, record existing order IDs so we don't alert for past orders
           orders.forEach(o => knownOrderIdsRef.current.add(o.id));
           isInitialLoadRef.current = false;
           return;
         }
 
-        // Check for brand new orders
         const brandNewOrders = orders.filter(o => !knownOrderIdsRef.current.has(o.id));
 
         if (brandNewOrders.length > 0) {
           const newest = brandNewOrders[0];
-          // Add all to known set
           brandNewOrders.forEach(o => knownOrderIdsRef.current.add(o.id));
-          
           setLatestNewOrder(newest);
 
-          // Female Voice Announcement!
-          const announcement = `Naya order aa gaya hai! ${newest.orderTakenByName} ne ${newest.companyName || newest.customerName} ke naam par order confirm kiya hai. Total raqam ${newest.grandTotal.toLocaleString()} rupay hai. Please proceed karein!`;
+          // Loud, calm, decent announcement
+          const client = newest.companyName || newest.customerName;
+          const announcement = `Naya order aa gaya hai! ${newest.orderTakenByName} ne ${client} ke naam par order confirm kiya hai. Total raqam ${newest.grandTotal.toLocaleString()} rupay hai. Baraye meherbani proceed karein!`;
           speakVoice(announcement);
 
-          // Refresh dashboard data
           if (onRefreshOrders) {
             onRefreshOrders();
           }
         }
       } catch {
-        // network issue, silently continue
+        // network issue
       }
     };
 
     checkOrders();
     const interval = setInterval(checkOrders, 6000);
     return () => clearInterval(interval);
-  }, [isVoiceEnabled, onRefreshOrders]);
+  }, [isVoiceEnabled, selectedVoiceUri, voiceRate, voicePitch, onRefreshOrders]);
 
-  // 5. Speech Recognition Setup (Microphone)
+  // 5. Active Listening Speech Recognition (Microphone)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const rec = new SpeechRecognition();
         rec.continuous = false;
-        rec.interimResults = false;
-        rec.lang = 'en-US'; // or 'ur-PK'
+        rec.interimResults = true; // Show live interim transcript as user speaks!
+        rec.lang = listenLang;
 
         rec.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          setCommandInput(transcript);
-          setIsListening(false);
-          // Auto execute voice query
-          executeCommand(transcript);
+          let interim = '';
+          let final = '';
+
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              final += event.results[i][0].transcript;
+            } else {
+              interim += event.results[i][0].transcript;
+            }
+          }
+
+          if (interim) {
+            setInterimText(interim);
+          }
+
+          if (final) {
+            setCommandInput(final);
+            setInterimText('');
+            setIsListening(false);
+            executeCommand(final);
+          }
         };
 
         rec.onerror = () => {
           setIsListening(false);
+          setInterimText('');
         };
 
         rec.onend = () => {
           setIsListening(false);
+          setInterimText('');
         };
 
         recognitionRef.current = rec;
       }
     }
-  }, []);
+  }, [listenLang]);
 
   const toggleMic = () => {
     if (!recognitionRef.current) {
-      alert("Microphone voice input is supported in Chrome, Edge, and Opera browsers. You can also type directly in the box!");
+      alert("Microphone recognition is supported on Chrome, Edge, and Opera browsers. You can also type directly in the command box!");
       return;
     }
 
     if (isListening) {
       recognitionRef.current.stop();
       setIsListening(false);
+      setInterimText('');
     } else {
       try {
+        recognitionRef.current.lang = listenLang;
         recognitionRef.current.start();
         setIsListening(true);
+        setInterimText('Listening... boliye');
       } catch {
         recognitionRef.current.stop();
         setIsListening(false);
+        setInterimText('');
       }
     }
   };
@@ -253,12 +359,10 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
         setAiResponse(data.spokenText);
         speakVoice(data.spokenText);
 
-        // If it was a status change, refresh orders
         if (data.updatedCount && onRefreshOrders) {
           onRefreshOrders();
         }
 
-        // If it generated a thank you message, open the modal
         if (data.actionType === 'thank_you' && data.order) {
           setThankYouModal({
             open: true,
@@ -271,14 +375,15 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
           });
         }
       } else {
-        const fallback = data.error || "Command samajh nahi aayi, dobara boliye.";
+        const fallback = data.error || "Aap ka hukam samajh nahi aaya, baraye meherbani dobara boliye.";
         setAiResponse(fallback);
       }
     } catch {
-      setAiResponse("Server se rabta nahi ho saka. Dobara koshish karein.");
+      setAiResponse("Server se rabta nahi ho saka. Baraye meherbani dobara koshish karein.");
     } finally {
       setLoading(false);
       setCommandInput('');
+      setInterimText('');
     }
   };
 
@@ -363,7 +468,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
 
   return (
     <>
-      {/* 1. Real-time New Order Banner (Pops when new order detected) */}
+      {/* 1. Real-time New Order Banner */}
       {latestNewOrder && (
         <div className="relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white shadow-xl shadow-teal-500/10 border border-teal-400/30 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -423,7 +528,8 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
 
       {/* 2. Executive Safe AI Operations Voice Assistant Card */}
       <div className="korean-card overflow-hidden border border-teal-200/80 bg-gradient-to-br from-white via-teal-50/20 to-emerald-50/30 shadow-md">
-        {/* Card Header */}
+        
+        {/* Header */}
         <div className="p-4 sm:p-5 flex items-center justify-between border-b border-teal-100/60">
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -438,14 +544,15 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black text-slate-900 tracking-tight">
-                  SAFE AI Voice &amp; Operations Assistant
+                  SAFE AI Operations Officer
                 </h3>
-                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200">
-                  Female Voice Live
+                <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-900 text-teal-300 border border-slate-700 flex items-center gap-1.5 shadow-sm">
+                  <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+                  Loud, Calm &amp; Decent Urdu Speaker
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Automatic voice announcements on new orders • Voice commands for delivery &amp; client WhatsApp texts
+                Loud, calm aur decent Urdu aawaz mein automatic announcements • Urdu / Roman Urdu voice commands sunnay aur execute karne ke liye
               </p>
             </div>
           </div>
@@ -455,11 +562,23 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
             <button
               type="button"
               onClick={handleTestVoice}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100/80 text-teal-800 text-xs font-bold border border-teal-200 transition-all"
-              title="Test the female voice speech"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-teal-300 text-xs font-bold border border-slate-700 transition-all shadow-sm"
+              title="Test the loud and calm male Urdu voice"
             >
-              <Volume2 className="w-3.5 h-3.5 text-teal-600" />
-              <span>Test Voice</span>
+              <Volume2 className="w-3.5 h-3.5 text-teal-400" />
+              <span>🎙️ Test Male Voice</span>
+            </button>
+
+            {/* Voice Settings Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowSettings(!showSettings)}
+              className={`p-2 rounded-xl border transition-all ${
+                showSettings ? 'bg-teal-100 border-teal-300 text-teal-800' : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200'
+              }`}
+              title="Voice & Mic Tuning Settings"
+            >
+              <Sliders className="w-4 h-4" />
             </button>
 
             {/* Voice Mute / Unmute Toggle */}
@@ -468,14 +587,14 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
               onClick={() => {
                 const next = !isVoiceEnabled;
                 setIsVoiceEnabled(next);
-                if (next) speakVoice("Voice alerts enabled.");
+                if (next) speakVoice("Aawaz on kar di gayi hai.");
               }}
               className={`p-2 rounded-xl border transition-all ${
                 isVoiceEnabled 
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
                   : 'bg-slate-100 border-slate-200 text-slate-400'
               }`}
-              title={isVoiceEnabled ? 'Voice enabled (Click to mute)' : 'Voice muted (Click to unmute)'}
+              title={isVoiceEnabled ? 'Voice active (Click to mute)' : 'Voice muted (Click to unmute)'}
             >
               {isVoiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </button>
@@ -491,9 +610,112 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
           </div>
         </div>
 
-        {/* Collapsible Content */}
+        {/* Optional Voice & Mic Tuning Panel */}
+        {showSettings && isExpanded && (
+          <div className="p-4 bg-teal-50/50 border-b border-teal-100/80 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs animate-in fade-in">
+            {/* Voice selector */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Select Male Urdu / English Voice:
+              </label>
+              <select
+                value={selectedVoiceUri}
+                onChange={(e) => {
+                  setSelectedVoiceUri(e.target.value);
+                  setTimeout(handleTestVoice, 100);
+                }}
+                className="w-full px-2.5 py-1.5 bg-white border border-teal-200 rounded-lg text-xs font-semibold text-slate-800"
+              >
+                {availableVoices.map(v => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    🎙️ {v.name} ({v.lang})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Speaking Pace (Calm vs Normal) */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Speech Pace / Speed: ({voiceRate}x)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0.75"
+                  max="1.15"
+                  step="0.05"
+                  value={voiceRate}
+                  onChange={(e) => setVoiceRate(Number(e.target.value))}
+                  className="w-full accent-teal-600 cursor-pointer"
+                />
+                <span className="text-[11px] font-mono text-teal-800 font-bold">
+                  {voiceRate <= 0.90 ? 'Calm 🌸' : 'Standard'}
+                </span>
+              </div>
+            </div>
+
+            {/* Listening Language (Urdu vs English) */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Mic Listening Accent:
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setListenLang('ur-PK')}
+                  className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all ${
+                    listenLang === 'ur-PK' ? 'bg-teal-600 text-white border-teal-600 shadow-xs' : 'bg-white text-slate-700 border-slate-200'
+                  }`}
+                >
+                  🇵🇰 Urdu / Roman
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setListenLang('en-US')}
+                  className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition-all ${
+                    listenLang === 'en-US' ? 'bg-teal-600 text-white border-teal-600 shadow-xs' : 'bg-white text-slate-700 border-slate-200'
+                  }`}
+                >
+                  🌐 English / Mix
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Assistant Body */}
         {isExpanded && (
           <div className="p-4 sm:p-5 space-y-4">
+            
+            {/* Live Audio Waves when Mic is Listening */}
+            {isListening && (
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white flex items-center justify-between shadow-lg shadow-rose-500/20 animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                    <Mic className="w-4 h-4 text-white animate-bounce" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                      <span>Live Listening...</span>
+                      <span className="inline-block w-2 h-2 rounded-full bg-white animate-ping" />
+                    </div>
+                    <p className="text-[11px] text-white/90">
+                      {interimText || 'Boliye: "Adnan ke order deliver confirm kardo"...'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleMic}
+                  className="px-3 py-1 bg-white/25 hover:bg-white/35 rounded-lg text-xs font-bold text-white border border-white/30"
+                >
+                  Stop Mic
+                </button>
+              </div>
+            )}
+
             {/* Voice / Text Command Bar */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -517,26 +739,26 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
                 </button>
               </div>
 
-              {/* Mic Speech Recognition Button */}
+              {/* Large Mic Button */}
               <button
                 type="button"
                 onClick={toggleMic}
-                className={`px-3 py-2.5 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all ${
+                className={`px-4 py-2.5 rounded-xl border flex items-center gap-2 text-xs font-black transition-all ${
                   isListening
-                    ? 'bg-rose-500 text-white border-rose-600 animate-pulse shadow-md shadow-rose-500/20'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-xs'
+                    ? 'bg-rose-500 text-white border-rose-600 shadow-lg shadow-rose-500/30 animate-pulse'
+                    : 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white border-teal-600 shadow-md shadow-teal-600/20 hover:brightness-105 active:scale-95'
                 }`}
-                title="Speak directly via microphone"
+                title="Click and speak into your microphone"
               >
                 {isListening ? (
                   <>
-                    <Mic className="w-4 h-4 text-white animate-bounce" />
-                    <span className="hidden sm:inline">Listening...</span>
+                    <MicOff className="w-4 h-4 text-white" />
+                    <span>Listening...</span>
                   </>
                 ) : (
                   <>
-                    <Mic className="w-4 h-4 text-teal-600" />
-                    <span className="hidden sm:inline">Mic</span>
+                    <Mic className="w-4 h-4 text-white" />
+                    <span>Bol Kar Kahein 🎙️</span>
                   </>
                 )}
               </button>
@@ -544,10 +766,10 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
 
             {/* Active AI Spoken / Text Feedback Bubble */}
             {aiResponse && (
-              <div className="p-3.5 rounded-xl bg-teal-50/80 border border-teal-200 text-xs text-teal-950 flex items-start gap-2.5 animate-in fade-in duration-200">
+              <div className="p-3.5 rounded-xl bg-teal-50/90 border border-teal-200 text-xs text-teal-950 flex items-start gap-2.5 animate-in fade-in duration-200">
                 <Sparkles className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
                 <div className="flex-1 leading-relaxed">
-                  <strong>Safe AI:</strong> {aiResponse}
+                  <strong className="text-teal-900 font-bold">Safe AI Assistant:</strong> {aiResponse}
                 </div>
                 <button
                   type="button"
@@ -562,7 +784,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
             {/* Quick Action Chips */}
             <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Quick Commands:
+                Direct Actions:
               </span>
 
               <button
