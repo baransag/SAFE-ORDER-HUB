@@ -75,8 +75,13 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    if (!process.env.DATABASE_URL || error.message?.includes('DATABASE_URL')) {
+      return NextResponse.json({ 
+        error: 'DATABASE_URL is not configured on Vercel. Please add your PostgreSQL / Neon connection string in Vercel project environment variables.' 
+      }, { status: 500 });
+    }
+    return NextResponse.json({ error: error.message || 'Authentication failed' }, { status: 500 });
   }
 }

@@ -11,6 +11,9 @@ export function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon.ico') ||
+    pathname.startsWith('/manifest.json') ||
+    pathname.startsWith('/sw.js') ||
+    pathname.startsWith('/assest') ||
     pathname.startsWith('/public') ||
     pathname.startsWith('/api/auth/login')
   ) {
