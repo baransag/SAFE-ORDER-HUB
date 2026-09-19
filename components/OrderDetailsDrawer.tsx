@@ -12,7 +12,7 @@ import {
   Send, 
   FileText, 
   Edit3, 
-  User, 
+  User as UserIcon, 
   Truck, 
   Building,
   Calendar,
@@ -20,13 +20,15 @@ import {
   ExternalLink,
   Share2
 } from 'lucide-react';
-import { Order, OrderStatus, Role } from '@/lib/types';
+import { Order, OrderStatus, Role, User } from '@/lib/types';
 import OrderStatusBadge from './OrderStatusBadge';
+import ThankYouModal from './ThankYouModal';
 
 interface Props {
   order: Order | null;
   isOpen: boolean;
   onClose: () => void;
+  currentUser?: User | null;
   currentUserRole?: Role;
   onOrderUpdated: () => void;
 }
@@ -35,18 +37,21 @@ export default function OrderDetailsDrawer({
   order,
   isOpen,
   onClose,
+  currentUser,
   currentUserRole,
   onOrderUpdated,
 }: Props) {
   const [updating, setUpdating] = useState(false);
   const [showRateEdit, setShowRateEdit] = useState(false);
+  const [showThankYouModal, setShowThankYouModal] = useState(false);
   const [editRates, setEditRates] = useState<{ [id: string]: number }>({});
   const [reviewNote, setReviewNote] = useState('');
   const [statusNote, setStatusNote] = useState('');
 
   if (!isOpen || !order) return null;
 
-  const isFullAccess = currentUserRole && ['BOSS', 'CONTROLLER', 'MANAGER'].includes(currentUserRole);
+  const effectiveRole = currentUser?.role || currentUserRole;
+  const isFullAccess = effectiveRole && ['BOSS', 'CONTROLLER', 'MANAGER'].includes(effectiveRole);
 
   const handleUpdateStatus = async (newStatus: OrderStatus) => {
     setUpdating(true);
@@ -160,6 +165,16 @@ export default function OrderDetailsDrawer({
           </div>
 
           <div className="flex items-center gap-2">
+            {isFullAccess && (
+              <button
+                onClick={() => setShowThankYouModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all shadow-xs"
+                title="Generate & Send Client Thank You WhatsApp"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-purple-600" />
+                <span className="hidden sm:inline">💬 Thank You Text</span>
+              </button>
+            )}
             <button
               onClick={handlePostToGroup}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all"
@@ -499,6 +514,17 @@ export default function OrderDetailsDrawer({
         </div>
 
       </div>
+
+      {/* Client Thank You Modal */}
+      <ThankYouModal
+        isOpen={showThankYouModal}
+        onClose={() => setShowThankYouModal(false)}
+        order={order}
+        currentUser={currentUser || null}
+        onMessageSent={() => {
+          onOrderUpdated();
+        }}
+      />
     </div>
   );
 }

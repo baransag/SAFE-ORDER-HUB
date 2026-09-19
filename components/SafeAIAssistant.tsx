@@ -20,14 +20,28 @@ import {
   X,
   Radio,
   Sliders,
-  Heart
+  Heart,
+  TrendingUp,
+  AlertTriangle,
+  Package,
+  Layers
 } from 'lucide-react';
-import { User, Order } from '@/lib/types';
+import { User, Order, OrderStatus } from '@/lib/types';
+import ThankYouModal from '@/components/ThankYouModal';
 
 interface Props {
   currentUser: User | null;
   onRefreshOrders?: () => void;
   onOpenOrder?: (order: Order) => void;
+}
+
+interface ChatHistoryItem {
+  id: string;
+  sender: 'user' | 'ai';
+  text: string;
+  actionType?: string;
+  order?: Order;
+  timestamp: string;
 }
 
 export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOrder }: Props) {
@@ -39,12 +53,22 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
   const [interimText, setInterimText] = useState('');
   const [loading, setLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
-  
+  const [lastActionOrder, setLastActionOrder] = useState<Order | null>(null);
+  const [history, setHistory] = useState<ChatHistoryItem[]>([]);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+
+  // Dynamic Salutation
+  const userSalutation = currentUser?.role === 'BOSS'
+    ? 'Boss sahib'
+    : currentUser?.role === 'MANAGER'
+      ? 'Manager sahiba'
+      : 'Controller sahib';
+
   // Voice Synthesis Configuration
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>('');
-  const [voiceRate, setVoiceRate] = useState<number>(0.88); // Calm, deliberate, executive cadence
-  const [voicePitch, setVoicePitch] = useState<number>(0.80); // Deep, mature, masculine tone (avoids high/childish voice)
+  const [voiceRate, setVoiceRate] = useState<number>(0.88); // Calm, executive cadence
+  const [voicePitch, setVoicePitch] = useState<number>(0.80); // Deep, mature tone
   const [listenLang, setListenLang] = useState<'ur-PK' | 'hi-IN' | 'en-US'>('ur-PK');
 
   // Real-time Order Monitoring
@@ -52,24 +76,9 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const isInitialLoadRef = useRef(true);
 
-  // Thank You Message State
-  const [thankYouModal, setThankYouModal] = useState<{
-    open: boolean;
-    order: Order | null;
-    messageText: string;
-    whatsappUrl: string;
-    clientPhone: string;
-    controllerPhone: string;
-    copied: boolean;
-  }>({
-    open: false,
-    order: null,
-    messageText: '',
-    whatsappUrl: '',
-    clientPhone: '',
-    controllerPhone: currentUser?.phone || '03468760963',
-    copied: false,
-  });
+  // Thank You Modal State
+  const [thankYouOrder, setThankYouOrder] = useState<Order | null>(null);
+  const [isThankYouModalOpen, setIsThankYouModalOpen] = useState(false);
 
   // Speech Recognition Ref
   const recognitionRef = useRef<any>(null);
@@ -82,7 +91,6 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
       const allVoices = window.speechSynthesis.getVoices();
       if (!allVoices || allVoices.length === 0) return;
 
-      // Filter and sort prioritizing natural, loud, calm, decent male Urdu/English voices
       const sorted = [...allVoices].sort((a, b) => {
         const aScore = getVoiceScore(a);
         const bScore = getVoiceScore(b);
@@ -92,7 +100,6 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
       setAvailableVoices(sorted);
 
       if (!selectedVoiceUri && sorted.length > 0) {
-        // Automatically select the highest scoring male Urdu / English natural voice
         setSelectedVoiceUri(sorted[0].voiceURI);
       }
     };
@@ -101,32 +108,23 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     window.speechSynthesis.onvoiceschanged = populateVoices;
   }, [selectedVoiceUri]);
 
-  // Scoring function for voice quality (prioritizes loud, calm, decent male Urdu/English voices)
   const getVoiceScore = (v: SpeechSynthesisVoice) => {
     let score = 0;
     const name = v.name.toLowerCase();
     const lang = v.lang.toLowerCase();
 
-    // 1. Male Urdu / Pakistani voices (e.g. Microsoft Asad Online Natural)
     if (name.includes('asad') || (lang.includes('ur') && !name.includes('gul') && !name.includes('female'))) {
       score += 120;
     }
-
-    // 2. Natural / Neural male voices with clear Indian/Pakistani/British diction
     if (name.includes('madhur')) score += 80;
     if (name.includes('oliver') || name.includes('ryan') || name.includes('guy') || name.includes('george')) {
       score += 60;
     }
-
-    // 3. General natural / neural voices
     if (name.includes('natural') || name.includes('online')) score += 40;
     if (name.includes('google')) score += 30;
-
-    // 4. Languages
     if (lang.startsWith('ur') || lang.startsWith('hi')) score += 35;
     if (lang.includes('gb') || lang.includes('uk')) score += 20;
 
-    // Deduct points for female voices because user requested a loud, calm, decent male speaker
     if (
       name.includes('female') || 
       name.includes('zira') || 
@@ -134,9 +132,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
       name.includes('natasha') || 
       name.includes('jenny') || 
       name.includes('gul') || 
-      name.includes('samantha') || 
-      name.includes('swara') ||
-      name.includes('heera')
+      name.includes('samantha')
     ) {
       score -= 60;
     }
@@ -144,7 +140,6 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     return score;
   };
 
-  // 1. Play Soft Dignified Executive Chime
   const playChime = () => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -153,11 +148,11 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = 'triangle'; // Warm, authoritative tone
-      osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
-      osc.frequency.exponentialRampToValueAtTime(554.37, ctx.currentTime + 0.15); // C#5
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(554.37, ctx.currentTime + 0.15);
 
-      gain.gain.setValueAtTime(0.18, ctx.currentTime); // Loud & clear
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
 
       osc.connect(gain);
@@ -169,7 +164,6 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     }
   };
 
-  // 2. Loud, Calm & Decent Male Urdu Voice Synthesizer
   const speakVoice = (text: string) => {
     if (!isVoiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) {
       return;
@@ -177,12 +171,11 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
 
     try {
       playChime();
-      window.speechSynthesis.cancel(); // Stop any overlapping speech
+      window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
       const voices = window.speechSynthesis.getVoices();
 
-      // Find chosen voice or best male candidate
       let voiceToUse = voices.find(v => v.voiceURI === selectedVoiceUri);
 
       if (!voiceToUse) {
@@ -202,10 +195,9 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
         utterance.voice = voiceToUse;
       }
 
-      // Loud, calm, dignified pacing and pitch
-      utterance.rate = voiceRate; // 0.92 for calm, deliberate cadence
-      utterance.pitch = voicePitch; // 0.92 for deep, masculine, calm tone
-      utterance.volume = 1.0; // Loud and crystal clear
+      utterance.rate = voiceRate;
+      utterance.pitch = voicePitch;
+      utterance.volume = 1.0;
       
       window.speechSynthesis.speak(utterance);
     } catch (err) {
@@ -213,14 +205,13 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     }
   };
 
-  // 3. Test Voice Button
   const handleTestVoice = () => {
-    const greeting = "Assalam-o-Alaikum Controller sahib! Main Safe Solutions ka Operations Officer hoon. Loud aur calm Urdu aawaz mein aap ka har order foran process karoonga.";
+    const greeting = `Assalam-o-Alaikum ${userSalutation}! Main Safe Solutions ka AI Operations Copilot hoon. Har voice hukam foran execute karoonga.`;
     speakVoice(greeting);
-    setAiResponse("🎙️ Voice Test: 'Assalam-o-Alaikum Controller sahib! Main Safe Solutions ka Operations Officer hoon. Loud aur calm Urdu aawaz mein aap ka har order foran process karoonga.'");
+    setAiResponse(greeting);
   };
 
-  // 4. Real-time Order Monitoring (Polls every 6 seconds)
+  // Real-time Order Monitoring (Polls every 6 seconds)
   useEffect(() => {
     const checkOrders = async () => {
       try {
@@ -242,9 +233,8 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
           brandNewOrders.forEach(o => knownOrderIdsRef.current.add(o.id));
           setLatestNewOrder(newest);
 
-          // Loud, calm, decent announcement
           const client = newest.companyName || newest.customerName;
-          const announcement = `Naya order aa gaya hai! ${newest.orderTakenByName} ne ${client} ke naam par order confirm kiya hai. Total raqam ${newest.grandTotal.toLocaleString()} rupay hai. Baraye meherbani proceed karein!`;
+          const announcement = `Naya order aa gaya hai! ${newest.orderTakenByName} ne ${client} ke naam par order confirm kiya hai. Total raqam ${newest.grandTotal.toLocaleString()} rupay hai.`;
           speakVoice(announcement);
 
           if (onRefreshOrders) {
@@ -261,14 +251,14 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     return () => clearInterval(interval);
   }, [isVoiceEnabled, selectedVoiceUri, voiceRate, voicePitch, onRefreshOrders]);
 
-  // 5. Active Listening Speech Recognition (Microphone)
+  // Speech Recognition (Microphone)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const rec = new SpeechRecognition();
         rec.continuous = false;
-        rec.interimResults = true; // Show live interim transcript as user speaks!
+        rec.interimResults = true;
         rec.lang = listenLang;
 
         rec.onresult = (event: any) => {
@@ -312,7 +302,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
 
   const toggleMic = () => {
     if (!recognitionRef.current) {
-      alert("Microphone recognition is supported on Chrome, Edge, and Opera browsers. You can also type directly in the command box!");
+      alert("Microphone recognition is supported on Chrome, Edge, and Android/Safari browsers. You can also type directly in the box!");
       return;
     }
 
@@ -334,13 +324,23 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     }
   };
 
-  // 6. Execute Natural Language or Action Commands
+  // Execute Natural Language Commands
   const executeCommand = async (cmdText?: string) => {
     const query = (cmdText || commandInput).trim();
     if (!query) return;
 
     setLoading(true);
     setAiResponse(null);
+    setLastActionOrder(null);
+
+    // Append to conversation history
+    const userMsg: ChatHistoryItem = {
+      id: `usr_${Date.now()}`,
+      sender: 'user',
+      text: query,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    setHistory(prev => [userMsg, ...prev.slice(0, 7)]);
 
     try {
       const res = await fetch('/api/ai-assistant', {
@@ -359,20 +359,34 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
         setAiResponse(data.spokenText);
         speakVoice(data.spokenText);
 
+        const aiMsg: ChatHistoryItem = {
+          id: `ai_${Date.now()}`,
+          sender: 'ai',
+          text: data.spokenText,
+          actionType: data.actionType,
+          order: data.order,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setHistory(prev => [aiMsg, ...prev.slice(0, 7)]);
+
+        if (data.order) {
+          setLastActionOrder(data.order);
+        }
+
+        // Refresh orders list if database was modified
         if (data.updatedCount && onRefreshOrders) {
           onRefreshOrders();
         }
 
+        // Action: Open order drawer automatically
+        if (data.actionType === 'open_order' && data.order && onOpenOrder) {
+          onOpenOrder(data.order);
+        }
+
+        // Action: Open Thank You modal
         if (data.actionType === 'thank_you' && data.order) {
-          setThankYouModal({
-            open: true,
-            order: data.order,
-            messageText: data.messageText,
-            whatsappUrl: data.whatsappUrl,
-            clientPhone: data.order.customerWhatsapp || data.order.customerPhone || '',
-            controllerPhone: currentUser?.phone || '03468760963',
-            copied: false,
-          });
+          setThankYouOrder(data.order);
+          setIsThankYouModalOpen(true);
         }
       } else {
         const fallback = data.error || "Aap ka hukam samajh nahi aaya, baraye meherbani dobara boliye.";
@@ -387,7 +401,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     }
   };
 
-  // Quick Action Handlers
+  // Direct Action Handlers
   const handleQuickDeliver = async (empName: string) => {
     setLoading(true);
     try {
@@ -412,38 +426,13 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     }
   };
 
-  const handleOpenThankYouGenerator = async (order?: Order) => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/ai-assistant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'thank_you_message',
-          orderId: order?.id,
-          controllerPhone: currentUser?.phone,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setThankYouModal({
-          open: true,
-          order: data.order,
-          messageText: data.messageText,
-          whatsappUrl: data.whatsappUrl,
-          clientPhone: data.clientPhone,
-          controllerPhone: data.controllerPhone,
-          copied: false,
-        });
-        if (data.spokenText) {
-          speakVoice(data.spokenText);
-        }
-      }
-    } catch {
-      alert("Could not prepare Thank You message.");
-    } finally {
-      setLoading(false);
+  const handleOpenThankYou = (order?: Order) => {
+    if (order) {
+      setThankYouOrder(order);
+    } else if (lastActionOrder) {
+      setThankYouOrder(lastActionOrder);
     }
+    setIsThankYouModalOpen(true);
   };
 
   const handleTeamSummary = async () => {
@@ -470,15 +459,15 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
     <>
       {/* 1. Real-time New Order Banner */}
       {latestNewOrder && (
-        <div className="relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white shadow-xl shadow-teal-500/10 border border-teal-400/30 animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="relative overflow-hidden p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white shadow-xl shadow-teal-500/10 border border-teal-400/30 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30">
                 <Radio className="w-5 h-5 text-white animate-pulse" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-black uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-full text-white">
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-full text-white">
                     🚨 LIVE ORDER ANNOUNCEMENT
                   </span>
                   <span className="text-xs text-white/80 font-mono">
@@ -486,7 +475,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
                   </span>
                 </div>
                 <h4 className="text-base font-bold mt-1 text-white">
-                  {latestNewOrder.orderTakenByName} confirmed order for <span className="underline decoration-white/50">{latestNewOrder.companyName || latestNewOrder.customerName}</span> ({latestNewOrder.city})
+                  {latestNewOrder.orderTakenByName} booked for <span className="underline decoration-white/50">{latestNewOrder.companyName || latestNewOrder.customerName}</span> ({latestNewOrder.city})
                 </h4>
                 <p className="text-xs text-white/90 mt-0.5">
                   Amount: <strong className="text-amber-200">Rs. {latestNewOrder.grandTotal.toLocaleString()}</strong> • Status: <span className="font-semibold uppercase">{latestNewOrder.status}</span>
@@ -501,17 +490,17 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
                   onClick={() => onOpenOrder(latestNewOrder)}
                   className="px-3.5 py-1.5 rounded-xl bg-white text-teal-900 text-xs font-bold hover:bg-teal-50 transition-all shadow-sm flex items-center gap-1.5"
                 >
-                  <span>Open Drawer</span>
+                  <span>View Details</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => handleOpenThankYouGenerator(latestNewOrder)}
+                onClick={() => handleOpenThankYou(latestNewOrder)}
                 className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-semibold border border-white/30 transition-all flex items-center gap-1.5"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
-                <span>💬 Thank You Text</span>
+                <span>💬 Thank You Hub</span>
               </button>
               <button
                 type="button"
@@ -526,7 +515,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
         </div>
       )}
 
-      {/* 2. Executive Safe AI Operations Voice Assistant Card */}
+      {/* 2. Executive Safe AI Operations Card */}
       <div className="korean-card overflow-hidden border border-teal-200/80 bg-gradient-to-br from-white via-teal-50/20 to-emerald-50/30 shadow-md">
         
         {/* Header */}
@@ -544,15 +533,15 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black text-slate-900 tracking-tight">
-                  SAFE AI Operations Officer
+                  SAFE AI Operations Copilot
                 </h3>
-                <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-900 text-teal-300 border border-slate-700 flex items-center gap-1.5 shadow-sm">
+                <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-900 text-teal-300 border border-slate-700 flex items-center gap-1.5 shadow-xs">
                   <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-                  Loud, Calm &amp; Decent Urdu Speaker
+                  {userSalutation} Active
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Loud, calm aur decent Urdu aawaz mein automatic announcements • Urdu / Roman Urdu voice commands sunnay aur execute karne ke liye
+                Urdu &amp; Roman voice commands for instant actions: Status updates, rate approvals, analytics &amp; Thank You texts
               </p>
             </div>
           </div>
@@ -562,11 +551,11 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
             <button
               type="button"
               onClick={handleTestVoice}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-teal-300 text-xs font-bold border border-slate-700 transition-all shadow-sm"
-              title="Test the loud and calm male Urdu voice"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-teal-300 text-xs font-bold border border-slate-700 transition-all shadow-xs"
+              title="Test the voice synthesizer"
             >
               <Volume2 className="w-3.5 h-3.5 text-teal-400" />
-              <span>🎙️ Test Male Voice</span>
+              <span>🎙️ Test Voice</span>
             </button>
 
             {/* Voice Settings Toggle */}
@@ -613,10 +602,9 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
         {/* Optional Voice & Mic Tuning Panel */}
         {showSettings && isExpanded && (
           <div className="p-4 bg-teal-50/50 border-b border-teal-100/80 grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs animate-in fade-in">
-            {/* Voice selector */}
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Male Urdu / English Voice:
+                Voice Output:
               </label>
               <select
                 value={selectedVoiceUri}
@@ -634,7 +622,6 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
               </select>
             </div>
 
-            {/* Speaking Pace (Calm vs Fast) */}
             <div>
               <label className="block font-bold text-slate-700 mb-1">
                 Pace / Speed: ({voiceRate}x)
@@ -655,7 +642,6 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
               </div>
             </div>
 
-            {/* Voice Tone & Depth (Pitch) */}
             <div>
               <label className="block font-bold text-slate-700 mb-1">
                 Tone Depth: ({voicePitch.toFixed(2)})
@@ -671,15 +657,14 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
                   className="w-full accent-teal-600 cursor-pointer"
                 />
                 <span className="text-[10px] font-mono text-teal-800 font-bold whitespace-nowrap">
-                  {voicePitch <= 0.85 ? 'Deep & Mature 🎙️' : 'Standard'}
+                  {voicePitch <= 0.85 ? 'Deep & Clear 🎙️' : 'Standard'}
                 </span>
               </div>
             </div>
 
-            {/* Listening Language (Urdu vs English) */}
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Mic Listening Accent:
+                Mic Accent:
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 <button
@@ -709,20 +694,20 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
         {isExpanded && (
           <div className="p-4 sm:p-5 space-y-4">
             
-            {/* Live Audio Waves when Mic is Listening */}
+            {/* Live Audio Visualizer Waves when Mic is Listening */}
             {isListening && (
-              <div className="p-3 rounded-2xl bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white flex items-center justify-between shadow-lg shadow-rose-500/20 animate-pulse">
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white flex items-center justify-between shadow-lg shadow-rose-500/20 animate-pulse">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
-                    <Mic className="w-4 h-4 text-white animate-bounce" />
+                  <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                    <Mic className="w-5 h-5 text-white animate-bounce" />
                   </div>
                   <div>
                     <div className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
                       <span>Live Listening...</span>
                       <span className="inline-block w-2 h-2 rounded-full bg-white animate-ping" />
                     </div>
-                    <p className="text-[11px] text-white/90">
-                      {interimText || 'Boliye: "Adnan ke order deliver confirm kardo"...'}
+                    <p className="text-xs text-white/95 font-medium mt-0.5">
+                      {interimText || 'Boliye: "Adnan ke orders deliver mark karo" ya "Pending orders kitne hain"...'}
                     </p>
                   </div>
                 </div>
@@ -730,7 +715,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
                 <button
                   type="button"
                   onClick={toggleMic}
-                  className="px-3 py-1 bg-white/25 hover:bg-white/35 rounded-lg text-xs font-bold text-white border border-white/30"
+                  className="px-3 py-1.5 bg-white/25 hover:bg-white/35 rounded-xl text-xs font-bold text-white border border-white/30 transition-all"
                 >
                   Stop Mic
                 </button>
@@ -742,19 +727,19 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
               <div className="relative flex-1">
                 <input
                   type="text"
-                  placeholder='Boliye ya type karein: "Adnan ke order deliver confirm kardo" ya "Client ko Thank You text likho"...'
+                  placeholder='Boliye ya type karein: "Adnan ke orders deliver karo", "Order 1 check karo", "Shahzaib ki performance"...'
                   value={commandInput}
                   onChange={(e) => setCommandInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') executeCommand();
                   }}
-                  className="w-full pl-4 pr-12 py-2.5 bg-white border border-teal-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 shadow-xs transition-all"
+                  className="w-full pl-4 pr-12 py-3 bg-white border border-teal-200 rounded-2xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 shadow-xs transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => executeCommand()}
                   disabled={loading || !commandInput.trim()}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-40 disabled:hover:bg-teal-600 transition-all"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-40 disabled:hover:bg-teal-600 transition-all"
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
@@ -764,7 +749,7 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
               <button
                 type="button"
                 onClick={toggleMic}
-                className={`px-4 py-2.5 rounded-xl border flex items-center gap-2 text-xs font-black transition-all ${
+                className={`px-4 py-3 rounded-2xl border flex items-center gap-2 text-xs font-black transition-all ${
                   isListening
                     ? 'bg-rose-500 text-white border-rose-600 shadow-lg shadow-rose-500/30 animate-pulse'
                     : 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white border-teal-600 shadow-md shadow-teal-600/20 hover:brightness-105 active:scale-95'
@@ -785,195 +770,199 @@ export default function SafeAIAssistant({ currentUser, onRefreshOrders, onOpenOr
               </button>
             </div>
 
-            {/* Active AI Spoken / Text Feedback Bubble */}
+            {/* Active AI Feedback Bubble with Quick Action Trigger */}
             {aiResponse && (
-              <div className="p-3.5 rounded-xl bg-teal-50/90 border border-teal-200 text-xs text-teal-950 flex items-start gap-2.5 animate-in fade-in duration-200">
-                <Sparkles className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-                <div className="flex-1 leading-relaxed">
-                  <strong className="text-teal-900 font-bold">Safe AI Assistant:</strong> {aiResponse}
+              <div className="p-4 rounded-2xl bg-teal-50/90 border border-teal-200 text-xs text-teal-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+                <div className="flex items-start gap-2.5">
+                  <Sparkles className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong className="text-teal-900 font-bold">Safe AI Copilot:</strong> {aiResponse}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setAiResponse(null)}
-                  className="text-slate-400 hover:text-slate-600 p-0.5"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  {lastActionOrder && onOpenOrder && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenOrder(lastActionOrder)}
+                      className="px-3 py-1 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold shadow-xs flex items-center gap-1"
+                    >
+                      <span>View Order</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  )}
+                  {lastActionOrder && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenThankYou(lastActionOrder)}
+                      className="px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs flex items-center gap-1"
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                      <span>Thank You Hub</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAiResponse(null)}
+                    className="text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* Quick Action Chips */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Direct Actions:
-              </span>
+            {/* Categorized Quick Action Chips */}
+            <div className="space-y-2 pt-1 border-t border-slate-100">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">
+                  📦 Actions:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => executeCommand('Adnan ke orders deliver mark karo')}
+                  disabled={loading}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 text-[11px] font-semibold transition-all"
+                >
+                  Deliver Adnan Orders
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCommand('Shahzaib ke orders deliver mark karo')}
+                  disabled={loading}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 text-[11px] font-semibold transition-all"
+                >
+                  Deliver Shahzaib Orders
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCommand('Pending orders confirm kardo')}
+                  disabled={loading}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 text-[11px] font-semibold transition-all"
+                >
+                  Confirm Pending Orders
+                </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => handleQuickDeliver('Adnan')}
-                disabled={loading}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 text-[11px] font-semibold flex items-center gap-1.5 transition-all"
-              >
-                <span>📦 Adnan ke orders Delivered mark karo</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">
+                  💬 Client:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => executeCommand('Client ko VIP Urdu Thank You text banao')}
+                  disabled={loading}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-purple-50 text-purple-800 border border-purple-200 text-[11px] font-semibold flex items-center gap-1 transition-all"
+                >
+                  <MessageSquare className="w-3 h-3 text-purple-600" />
+                  <span>VIP Client Urdu Thank You</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenThankYou()}
+                  disabled={loading}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold flex items-center gap-1 transition-all"
+                >
+                  <MessageSquare className="w-3 h-3 text-emerald-600" />
+                  <span>Open Thank You Generator Hub</span>
+                </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => handleQuickDeliver('Shahzaib')}
-                disabled={loading}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 text-[11px] font-semibold flex items-center gap-1.5 transition-all"
-              >
-                <span>📦 Shahzaib ke orders Delivered mark karo</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleOpenThankYouGenerator()}
-                disabled={loading}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 text-[11px] font-semibold flex items-center gap-1.5 transition-all"
-              >
-                <MessageSquare className="w-3 h-3 text-teal-600" />
-                <span>💬 Client ko Thank You WhatsApp bhejo</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleTeamSummary}
-                disabled={loading}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 text-[11px] font-semibold flex items-center gap-1.5 transition-all"
-              >
-                <Users className="w-3 h-3 text-teal-600" />
-                <span>📊 Full Team Dashboard Overview</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">
+                  📊 Insights:
+                </span>
+                <button
+                  type="button"
+                  onClick={handleTeamSummary}
+                  disabled={loading}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 text-[11px] font-semibold flex items-center gap-1 transition-all"
+                >
+                  <Users className="w-3 h-3 text-teal-600" />
+                  <span>Team Performance Report</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCommand('Urgent orders kaunse hain')}
+                  disabled={loading}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-semibold flex items-center gap-1 transition-all"
+                >
+                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                  <span>Urgent Orders Alert</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeCommand('Sabse zyada sales kis ki hain')}
+                  disabled={loading}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 text-[11px] font-semibold flex items-center gap-1 transition-all"
+                >
+                  <TrendingUp className="w-3 h-3 text-teal-600" />
+                  <span>Top Salesperson</span>
+                </button>
+              </div>
             </div>
+
+            {/* Recent Voice Command Transcript History (Collapsible) */}
+            {history.length > 0 && (
+              <div className="pt-2">
+                <details className="text-xs group">
+                  <summary className="cursor-pointer text-slate-500 font-bold flex items-center justify-between hover:text-slate-800">
+                    <span>Recent Voice Transcripts &amp; Activity ({history.length})</span>
+                    <span className="text-[10px] text-teal-600 group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {history.map(item => (
+                      <div
+                        key={item.id}
+                        className={`p-2 rounded-xl text-xs flex items-start gap-2 ${
+                          item.sender === 'user'
+                            ? 'bg-slate-50 text-slate-700 border border-slate-100'
+                            : 'bg-teal-50/70 text-teal-900 border border-teal-100'
+                        }`}
+                      >
+                        <span className="text-[10px] font-bold text-slate-400 font-mono mt-0.5">
+                          {item.timestamp}
+                        </span>
+                        <div className="flex-1">
+                          <strong className="font-semibold">{item.sender === 'user' ? 'You:' : 'AI:'}</strong> {item.text}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            )}
+
           </div>
         )}
       </div>
 
-      {/* 3. Thank You WhatsApp Message Modal */}
-      {thankYouModal.open && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="korean-card max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                  <MessageSquare className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">
-                    Client Thank You WhatsApp Generator
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    For {thankYouModal.order?.customerName} ({thankYouModal.order?.orderNumber})
-                  </p>
-                </div>
-              </div>
+      {/* 3. Mobile Floating Action Button (FAB) for Hands-free Voice on Phones */}
+      <div className="md:hidden fixed bottom-20 right-4 z-40">
+        <button
+          type="button"
+          onClick={toggleMic}
+          className={`w-13 h-13 rounded-full flex items-center justify-center text-white shadow-2xl transition-all ${
+            isListening
+              ? 'bg-rose-600 ring-4 ring-rose-300 animate-pulse scale-105'
+              : 'bg-gradient-to-tr from-teal-600 to-emerald-500 shadow-teal-500/30'
+          }`}
+          title="Tap to speak into AI Copilot"
+        >
+          {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+        </button>
+      </div>
 
-              <button
-                type="button"
-                onClick={() => setThankYouModal(prev => ({ ...prev, open: false }))}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Sender / Controller Phone */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Manager/Controller Contact No:
-                </label>
-                <input
-                  type="text"
-                  value={thankYouModal.controllerPhone}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setThankYouModal(prev => ({
-                      ...prev,
-                      controllerPhone: val,
-                    }));
-                  }}
-                  placeholder="03468760963"
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Client WhatsApp No:
-                </label>
-                <input
-                  type="text"
-                  value={thankYouModal.clientPhone}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    let clean = val.replace(/\D/g, '');
-                    if (clean.startsWith('0')) clean = '92' + clean.slice(1);
-                    const newUrl = `https://api.whatsapp.com/send?phone=${clean}&text=${encodeURIComponent(thankYouModal.messageText)}`;
-                    setThankYouModal(prev => ({
-                      ...prev,
-                      clientPhone: val,
-                      whatsappUrl: newUrl,
-                    }));
-                  }}
-                  placeholder="03001234567"
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-                />
-              </div>
-            </div>
-
-            {/* Formatted Message Box */}
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                WhatsApp Message Preview:
-              </label>
-              <textarea
-                rows={7}
-                value={thankYouModal.messageText}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  let clean = thankYouModal.clientPhone.replace(/\D/g, '');
-                  if (clean.startsWith('0')) clean = '92' + clean.slice(1);
-                  const newUrl = `https://api.whatsapp.com/send?phone=${clean}&text=${encodeURIComponent(val)}`;
-                  setThankYouModal(prev => ({
-                    ...prev,
-                    messageText: val,
-                    whatsappUrl: newUrl,
-                  }));
-                }}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono leading-relaxed text-slate-800"
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(thankYouModal.messageText);
-                  setThankYouModal(prev => ({ ...prev, copied: true }));
-                  setTimeout(() => setThankYouModal(prev => ({ ...prev, copied: false })), 3000);
-                }}
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all"
-              >
-                <Copy className="w-3.5 h-3.5 text-slate-500" />
-                <span>{thankYouModal.copied ? '✓ Copied!' : 'Copy Text'}</span>
-              </button>
-
-              <a
-                href={thankYouModal.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-5 py-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-green-600/20 transition-all"
-              >
-                <span>🚀 Send via WhatsApp</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 4. Intelligent Thank You Modal */}
+      <ThankYouModal
+        isOpen={isThankYouModalOpen}
+        onClose={() => setIsThankYouModalOpen(false)}
+        order={thankYouOrder}
+        currentUser={currentUser}
+        onMessageSent={() => {
+          if (onRefreshOrders) onRefreshOrders();
+        }}
+      />
     </>
   );
 }

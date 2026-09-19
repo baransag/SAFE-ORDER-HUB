@@ -482,6 +482,30 @@ export const db = {
     return order;
   },
 
+  addOrderAuditNote: (
+    orderId: string,
+    note: string,
+    actor: { id: string; name: string }
+  ): boolean => {
+    const data = ensureDatabase();
+    const order = data.orders.find(o => o.id === orderId || o.orderNumber === orderId);
+    if (!order) return false;
+
+    order.history.push({
+      id: `hist_${Date.now()}`,
+      orderId: order.id,
+      newStatus: order.status,
+      previousStatus: order.status,
+      changedById: actor.id,
+      changedByName: actor.name,
+      timestamp: new Date().toISOString(),
+      note,
+    });
+    order.updatedAt = new Date().toISOString();
+    saveDatabase(data);
+    return true;
+  },
+
   // NOTIFICATIONS
   getNotifications: (role?: Role): Notification[] => {
     const data = ensureDatabase();

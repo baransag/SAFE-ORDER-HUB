@@ -450,6 +450,7 @@ function OrdersContent() {
           setIsDrawerOpen(false);
           setSelectedOrder(null);
         }}
+        currentUser={currentUser}
         currentUserRole={currentUser?.role}
         onOrderUpdated={() => {
           fetchData();
