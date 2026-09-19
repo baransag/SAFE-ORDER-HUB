@@ -47,6 +47,7 @@ export default function OrderDetailsDrawer({
   const [editRates, setEditRates] = useState<{ [id: string]: number }>({});
   const [reviewNote, setReviewNote] = useState('');
   const [statusNote, setStatusNote] = useState('');
+  const [copied, setCopied] = useState(false);
 
   if (!isOpen || !order) return null;
 
@@ -105,8 +106,6 @@ export default function OrderDetailsDrawer({
       setUpdating(false);
     }
   };
-
-  const [copied, setCopied] = useState(false);
 
   const handlePostToGroup = () => {
     fetch(`/api/orders/${order.id}`)
@@ -459,6 +458,15 @@ export default function OrderDetailsDrawer({
                     📦 Mark Preparing
                   </button>
                 )}
+                {order.status !== 'READY_FOR_DISPATCH' && order.status !== 'DELIVERED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('READY_FOR_DISPATCH')}
+                    disabled={updating}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                  >
+                    🏷️ Ready for Dispatch
+                  </button>
+                )}
                 {order.status !== 'DISPATCHED' && order.status !== 'DELIVERED' && (
                   <button
                     onClick={() => handleUpdateStatus('DISPATCHED')}
@@ -468,6 +476,15 @@ export default function OrderDetailsDrawer({
                     🚚 Mark Dispatched
                   </button>
                 )}
+                {order.status !== 'OUT_FOR_DELIVERY' && order.status !== 'DELIVERED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('OUT_FOR_DELIVERY')}
+                    disabled={updating}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                  >
+                    📍 Out for Delivery
+                  </button>
+                )}
                 {order.status !== 'DELIVERED' && (
                   <button
                     onClick={() => handleUpdateStatus('DELIVERED')}
@@ -475,6 +492,15 @@ export default function OrderDetailsDrawer({
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
                   >
                     🎉 Mark Delivered
+                  </button>
+                )}
+                {order.status !== 'ON_HOLD' && order.status !== 'DELIVERED' && (
+                  <button
+                    onClick={() => handleUpdateStatus('ON_HOLD')}
+                    disabled={updating}
+                    className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-all shadow-xs"
+                  >
+                    ⏸️ Put On Hold
                   </button>
                 )}
                 {order.status !== 'CANCELLED' && (

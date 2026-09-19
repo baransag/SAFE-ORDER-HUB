@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = db.getUserByEmail(email);
+    const user = await db.getUserByEmail(email);
     if (!user) {
       return NextResponse.json(
         { error: 'Invalid email or password' }, 
@@ -37,6 +37,16 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+
+    await db.addAuditLog({
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      action: 'LOGIN',
+      entity: 'AUTH',
+      entityId: user.id,
+      newValue: 'User authenticated successfully',
+    });
 
     const token = signToken(user);
 

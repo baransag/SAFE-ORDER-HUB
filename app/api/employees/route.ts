@@ -8,7 +8,12 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const allUsers = db.getUsers();
+  // Strict RBAC: Sales users cannot browse company employees
+  if (!isFullAccess(user.role)) {
+    return NextResponse.json({ error: 'Forbidden: Access restricted to Management (Boss, Controller, Manager)' }, { status: 403 });
+  }
+
+  const allUsers = await db.getUsers();
   // Filter out passwords
   const sanitized = allUsers.map(u => ({
     id: u.id,
@@ -32,10 +37,14 @@ export async function PATCH(req: Request) {
   }
 
   try {
-    const { id, avatar } = await req.json();
+    const { id, avatar, active, vehicle } = await req.json();
     if (!id) return NextResponse.json({ error: 'User ID required' }, { status: 400 });
 
-    const updated = db.updateUser(id, { avatar });
+    const updated = await db.updateUser(id, { avatar, active, vehicle }, {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+    });
     return NextResponse.json({ success: true, user: updated });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || 'Failed to update user' }, { status: 500 });

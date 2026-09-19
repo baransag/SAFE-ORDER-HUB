@@ -161,6 +161,14 @@ export default function Navbar({ currentUser, onSearchChange }: Props) {
               Orders
             </Link>
             <Link 
+              href="/customers" 
+              className={`px-3.5 py-1.5 rounded-xl transition-colors ${
+                pathname.startsWith('/customers') ? 'bg-slate-900 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              Customers
+            </Link>
+            <Link 
               href="/products" 
               className={`px-3.5 py-1.5 rounded-xl transition-colors ${
                 pathname.startsWith('/products') ? 'bg-slate-900 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -171,12 +179,36 @@ export default function Navbar({ currentUser, onSearchChange }: Props) {
             {isFullAccess && (
               <>
                 <Link 
+                  href="/deliveries" 
+                  className={`px-3.5 py-1.5 rounded-xl transition-colors ${
+                    pathname.startsWith('/deliveries') ? 'bg-slate-900 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  Deliveries
+                </Link>
+                <Link 
+                  href="/reports" 
+                  className={`px-3.5 py-1.5 rounded-xl transition-colors ${
+                    pathname.startsWith('/reports') ? 'bg-slate-900 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  Reports
+                </Link>
+                <Link 
                   href="/team" 
                   className={`px-3.5 py-1.5 rounded-xl transition-colors ${
                     pathname.startsWith('/team') ? 'bg-slate-900 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
-                  Sales Team
+                  Team
+                </Link>
+                <Link 
+                  href="/audit" 
+                  className={`px-3.5 py-1.5 rounded-xl transition-colors ${
+                    pathname.startsWith('/audit') ? 'bg-slate-900 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  Audit
                 </Link>
                 <Link 
                   href="/settings" 

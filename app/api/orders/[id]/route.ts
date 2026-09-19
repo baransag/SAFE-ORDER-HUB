@@ -14,7 +14,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  const order = db.getOrderById(id);
+  const order = await db.getOrderById(id);
   if (!order) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 });
   }
@@ -24,7 +24,7 @@ export async function GET(
     return NextResponse.json({ error: 'Access denied' }, { status: 403 });
   }
 
-  const settings = db.getSettings();
+  const settings = await db.getSettings();
   const formattedMessage = formatWhatsAppOrderMessage(order, settings.companyName);
   const whatsappLink = generateWhatsAppLink(order, settings.officeWhatsappNumber, settings.companyName);
   const whatsappGroupUrl = settings.whatsappGroupInviteUrl || 'https://chat.whatsapp.com/DEbbiG4JnLkCRaNVrSIieK';
@@ -49,14 +49,14 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const order = db.getOrderById(id);
+  const order = await db.getOrderById(id);
   if (!order) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 });
   }
 
   try {
     const body = await req.json();
-    const { action, status, note, updatedItems, reviewNote } = body;
+    const { action, status, note, updatedItems, reviewNote, deliveryProof } = body;
 
     // Boss, Controller, Manager have full access to approve, edit rates, change status
     const fullAccess = isFullAccess(user.role);
@@ -70,7 +70,7 @@ export async function PATCH(
         return NextResponse.json({ error: 'Updated items required' }, { status: 400 });
       }
 
-      const updated = db.updateOrderRates(order.id, updatedItems, {
+      const updated = await db.updateOrderRates(order.id, updatedItems, {
         id: user.id,
         name: user.name,
         role: user.role,
@@ -87,11 +87,11 @@ export async function PATCH(
         }
       }
 
-      const updated = db.updateOrderStatus(order.id, status as OrderStatus, {
+      const updated = await db.updateOrderStatus(order.id, status as OrderStatus, {
         id: user.id,
         name: user.name,
         role: user.role,
-      }, note);
+      }, note, deliveryProof);
 
       return NextResponse.json({ success: true, order: updated });
     }

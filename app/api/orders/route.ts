@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get('search') || undefined;
   const status = (searchParams.get('status') as OrderStatus) || undefined;
 
-  const orders = db.getOrders({
+  const orders = await db.getOrders({
     role: user.role,
     userId: user.id,
     search,
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Process customer
-    const customer = db.findOrCreateCustomer({
+    const customer = await db.findOrCreateCustomer({
       name: customerName,
       companyName,
       phone: customerPhone,
@@ -67,10 +67,10 @@ export async function POST(req: NextRequest) {
       deliveryAddress,
       mapsUrl: mapsUrl || '',
       customerType: customerType || 'NEW',
-    });
+    }, { id: user.id, name: user.name });
 
     // Validate products and rates
-    const products = db.getProducts();
+    const products = await db.getProducts();
     let hasSpecialRate = false;
     let subtotal = 0;
     let discountTotal = 0;
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
 
     const initialStatus: OrderStatus = hasSpecialRate ? 'RATE_REVIEW' : 'NEW';
 
-    const order = db.createOrder({
+    const order = await db.createOrder({
       customerId: customer.id,
       customerName,
       companyName,
@@ -142,9 +142,11 @@ export async function POST(req: NextRequest) {
       orderTakenByPhone: user.phone,
 
       remarks: remarks || '',
+      internalNotes: body.internalNotes || '',
+      idempotencyKey: body.idempotencyKey || undefined,
     });
 
-    const settings = db.getSettings();
+    const settings = await db.getSettings();
     const formattedMessage = formatWhatsAppOrderMessage(order, settings.companyName);
     const whatsappLink = generateWhatsAppLink(order, settings.officeWhatsappNumber, settings.companyName);
     const whatsappGroupUrl = settings.whatsappGroupInviteUrl || 'https://chat.whatsapp.com/DEbbiG4JnLkCRaNVrSIieK';

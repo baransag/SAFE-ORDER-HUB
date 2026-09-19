@@ -3,7 +3,7 @@ import { getSessionUser, isFullAccess } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 export async function GET() {
-  const products = db.getProducts();
+  const products = await db.getProducts();
   return NextResponse.json({ products });
 }
 
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name, unit, and standard rate are required' }, { status: 400 });
     }
 
-    const product = db.createProduct({
+    const product = await db.createProduct({
       name,
       category: category || 'General Chemicals',
       defaultPacking: defaultPacking || 'Standard',
@@ -55,7 +55,7 @@ export async function PUT(req: NextRequest) {
     if (updates.standardRate) updates.standardRate = Number(updates.standardRate);
     if (updates.minAllowedRate) updates.minAllowedRate = Number(updates.minAllowedRate);
 
-    const product = db.updateProduct(id, updates);
+    const product = await db.updateProduct(id, updates);
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
@@ -78,6 +78,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Product ID required' }, { status: 400 });
   }
 
-  const ok = db.deleteProduct(id);
+  const ok = await db.deleteProduct(id);
   return NextResponse.json({ success: ok });
 }

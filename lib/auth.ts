@@ -42,7 +42,7 @@ export async function getSessionUser(): Promise<User | null> {
     const payload = verifyToken(token);
     if (!payload) return null;
 
-    const user = db.getUserById(payload.userId);
+    const user = await db.getUserById(payload.userId);
     if (!user || !user.active) return null;
 
     return user;
@@ -64,6 +64,18 @@ export function canReviewRates(role: Role): boolean {
 }
 
 export function canManageSettings(role: Role): boolean {
+  return isFullAccess(role);
+}
+
+export function canViewAuditLogs(role: Role): boolean {
+  return isFullAccess(role);
+}
+
+export function canAccessTeam(role: Role): boolean {
+  return isFullAccess(role);
+}
+
+export function canAccessReports(role: Role): boolean {
   return isFullAccess(role);
 }
 

@@ -45,6 +45,11 @@ export default function TeamPage() {
       const authData = await authRes.json();
       setCurrentUser(authData.user);
 
+      if (!['BOSS', 'CONTROLLER', 'MANAGER'].includes(authData.user.role)) {
+        router.push('/');
+        return;
+      }
+
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setTeamStats(statsData.stats?.employeePerformance || []);

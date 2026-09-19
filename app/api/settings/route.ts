@@ -3,7 +3,7 @@ import { getSessionUser, isFullAccess } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 export async function GET() {
-  const settings = db.getSettings();
+  const settings = await db.getSettings();
   return NextResponse.json({ settings });
 }
 
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { officeWhatsappNumber, whatsappGroupInviteUrl, companyName, rateWarningTolerancePercent } = body;
 
-    const updated = db.updateSettings({
+    const updated = await db.updateSettings({
       officeWhatsappNumber,
       whatsappGroupInviteUrl,
       companyName,

@@ -31,6 +31,7 @@ export interface Product {
   description?: string;
   inStock: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Customer {
@@ -43,6 +44,14 @@ export interface Customer {
   deliveryAddress: string;
   mapsUrl?: string;
   customerType: 'NEW' | 'EXISTING';
+  notes?: string;
+  createdById?: string;
+  createdAt: string;
+  updatedAt?: string;
+  // Computed helpers
+  totalOrders?: number;
+  totalSpend?: number;
+  lastOrderDate?: string;
 }
 
 export type OrderStatus = 
@@ -50,16 +59,32 @@ export type OrderStatus =
   | 'RATE_REVIEW'
   | 'CONFIRMED'
   | 'PREPARING'
+  | 'READY_FOR_DISPATCH'
   | 'DISPATCHED'
+  | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
+  | 'COMPLETED'
   | 'ON_HOLD'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'RETURNED'
+  | 'PARTIALLY_DELIVERED';
 
 export type PaymentStatus = 
+  | 'PENDING'
   | 'ADVANCE'
-  | 'CASH'
+  | 'PARTIAL'
+  | 'PAID'
   | 'CREDIT'
-  | 'PENDING';
+  | 'REFUNDED';
+
+export type DeliveryStatus = 
+  | 'PENDING'
+  | 'ASSIGNED'
+  | 'READY'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'FAILED'
+  | 'RETURNED';
 
 export type Urgency = 
   | 'NORMAL'
@@ -89,6 +114,23 @@ export interface OrderStatusHistory {
   changedByName: string;
   timestamp: string;
   note?: string;
+}
+
+export interface DeliveryProof {
+  id: string;
+  orderId: string;
+  assignedDriver?: string;
+  driverPhone?: string;
+  vehicleNumber?: string;
+  deliveryStatus: DeliveryStatus;
+  scheduledDate?: string;
+  deliveredAt?: string;
+  proofPhotoUrl?: string;
+  signedReceiptUrl?: string;
+  invoiceNumber?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Order {
@@ -124,10 +166,14 @@ export interface Order {
   orderTakenByPhone: string;
 
   remarks?: string;
+  internalNotes?: string;
+  idempotencyKey?: string;
+
   createdAt: string;
   updatedAt: string;
 
   history: OrderStatusHistory[];
+  delivery?: DeliveryProof;
 }
 
 export interface Notification {
@@ -136,10 +182,25 @@ export interface Notification {
   message: string;
   orderId?: string;
   orderNumber?: string;
-  type: 'NEW_ORDER' | 'RATE_REVIEW' | 'STATUS_CHANGE' | 'APPROVAL';
+  type: 'NEW_ORDER' | 'RATE_REVIEW' | 'STATUS_CHANGE' | 'APPROVAL' | 'DELIVERY';
   read: boolean;
   createdAt: string;
   recipientRoles?: Role[];
+  userId?: string;
+}
+
+export interface AuditLog {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: Role;
+  action: string;
+  entity: string;
+  entityId?: string;
+  oldValue?: string;
+  newValue?: string;
+  ipAddress?: string;
+  timestamp: string;
 }
 
 export interface SystemSettings {
@@ -150,4 +211,13 @@ export interface SystemSettings {
   currency: string;
   rateWarningTolerancePercent: number;
   updatedAt: string;
+}
+
+export interface AICallbackAction {
+  actionType: 'CREATE_ORDER' | 'UPDATE_STATUS' | 'APPROVE_RATE' | 'CANCEL_ORDER';
+  targetOrderNumber?: string;
+  targetOrderId?: string;
+  targetStatus?: OrderStatus;
+  orderPayload?: any;
+  summary: string;
 }

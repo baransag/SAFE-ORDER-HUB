@@ -8,7 +8,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const notifications = db.getNotifications(user.role);
+  const notifications = await db.getNotifications(user.role, user.id);
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return NextResponse.json({ notifications, unreadCount });
@@ -24,12 +24,12 @@ export async function PATCH(req: NextRequest) {
   const { id, markAll } = body;
 
   if (markAll) {
-    db.markAllNotificationsRead(user.role);
+    await db.markAllNotificationsRead(user.role, user.id);
     return NextResponse.json({ success: true });
   }
 
   if (id) {
-    db.markNotificationRead(id);
+    await db.markNotificationRead(id);
     return NextResponse.json({ success: true });
   }
 
