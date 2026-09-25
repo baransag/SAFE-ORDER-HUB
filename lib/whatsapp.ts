@@ -1,40 +1,44 @@
 import { Order } from './types';
 
 export function formatWhatsAppOrderMessage(order: Order, companyName = 'SAFE SOLUTIONS'): string {
-  const itemsText = order.items.map(item => {
-    return `*Product:* ${item.productName} (${item.packing})\n*Quantity:* ${item.quantity} ${item.unit}\n*Rate:* Rs. ${item.offeredRate.toLocaleString()} / ${item.unit}\n*Amount:* Rs. ${item.totalAmount.toLocaleString()}${item.isSpecialRate ? ' ⚠️ (Special Rate)' : ''}`;
+  const itemsText = order.items.map((item, idx) => {
+    const stdRate = item.standardRate ? ` (Std: Rs. ${item.standardRate.toLocaleString()})` : '';
+    return `${idx + 1}. *${item.productName}* (${item.packing || 'Standard'})\n   • Qty: ${item.quantity} ${item.unit}\n   • Rate: Rs. ${item.offeredRate.toLocaleString()} / ${item.unit}${stdRate}\n   • Amount: Rs. ${item.totalAmount.toLocaleString()}${item.isSpecialRate ? ' ⚠️ (Special Rate)' : ''}`;
   }).join('\n\n');
 
   const lines = [
     `🔔 *NEW ORDER — ${companyName.toUpperCase()}*`,
     `━━━━━━━━━━━━━━━━━━`,
-    `*Order ID:* ${order.orderNumber}`,
-    `*Status:* ${order.status}`,
-    `*Urgency:* ${order.urgency}`,
+    `📋 *Order ID:* ${order.orderNumber}`,
+    `📊 *Status:* ${order.status}`,
+    `⚡ *Urgency:* ${order.urgency}`,
     ``,
-    `📦 *ORDER DETAILS:*`,
+    `📦 *ORDERED PRODUCTS:*`,
     itemsText,
     ``,
-    `*Grand Total:* Rs. ${order.grandTotal.toLocaleString()}`,
-    `*Payment Status:* ${order.paymentStatus}${order.paymentRemarks ? ` (${order.paymentRemarks})` : ''}`,
+    `💰 *FINANCIAL TOTALS:*`,
+    `• *Subtotal:* Rs. ${(order.subtotal || order.grandTotal).toLocaleString()}`,
+    order.discountTotal && order.discountTotal > 0 ? `• *Discount:* - Rs. ${order.discountTotal.toLocaleString()}` : null,
+    `• *Grand Total:* Rs. ${order.grandTotal.toLocaleString()}`,
+    `• *Payment Status:* ${order.paymentStatus}${order.paymentRemarks ? ` (${order.paymentRemarks})` : ''}`,
     ``,
-    `👤 *CUSTOMER DETAILS:*`,
-    `*Customer / Site:* ${order.companyName}`,
-    `*Contact Person:* ${order.customerName}`,
-    `*Phone:* ${order.customerPhone}`,
-    order.customerWhatsapp ? `*WhatsApp:* ${order.customerWhatsapp}` : null,
-    `*Delivery City:* ${order.city}`,
-    `*Delivery Address:* ${order.deliveryAddress}`,
-    order.mapsUrl ? `📍 *Location Pin:* ${order.mapsUrl}` : null,
+    `👤 *CUSTOMER & SITE:*`,
+    `• *Company / Site:* ${order.companyName}`,
+    `• *Contact Person:* ${order.customerName}`,
+    `• *Phone:* ${order.customerPhone}`,
+    order.customerWhatsapp ? `• *WhatsApp:* ${order.customerWhatsapp}` : null,
+    `• *City:* ${order.city}`,
+    `• *Delivery Address:* ${order.deliveryAddress}`,
+    order.mapsUrl ? `• 📍 *Location Pin:* ${order.mapsUrl}` : null,
     ``,
-    `📅 *SCHEDULE:*`,
-    `*Required Date:* ${order.requiredDeliveryDate}`,
+    `📅 *DELIVERY SCHEDULE:*`,
+    `• *Required Date:* ${order.requiredDeliveryDate}`,
     ``,
     `👨‍💼 *SALES DETAILS:*`,
-    `*Order Taken By:* ${order.orderTakenByName} (${order.orderTakenByPhone})`,
-    order.remarks ? `*Remarks / Instructions:* ${order.remarks}` : null,
+    `• *Order Taken By:* ${order.orderTakenByName} (${order.orderTakenByPhone || order.orderTakenByEmail || 'Sales'})`,
+    order.remarks ? `\n📝 *Order Remarks / Instructions:*\n${order.remarks}` : null,
     `━━━━━━━━━━━━━━━━━━`,
-    `_Generated automatically via SAFE ORDER HUB_`
+    `_Authoritative order record booked via SAFE ORDER HUB_`
   ].filter(Boolean);
 
   return lines.join('\n');
@@ -58,14 +62,26 @@ export function generateWhatsAppLink(order: Order, targetPhone?: string, company
 export function getWhatsAppGroupPayload(order: Order, groupInviteUrl?: string, companyName?: string) {
   const message = formatWhatsAppOrderMessage(order, companyName);
   const encoded = encodeURIComponent(message);
+  // Universal share link: opens WhatsApp dialog to select group/contact with text prefilled
   const shareUrl = `https://api.whatsapp.com/send?text=${encoded}`;
   const groupUrl = groupInviteUrl || 'https://chat.whatsapp.com/DEbbiG4JnLkCRaNVrSIieK';
+
+  let customerDirectUrl = '';
+  if (order.customerWhatsapp || order.customerPhone) {
+    const raw = order.customerWhatsapp || order.customerPhone;
+    let cleaned = raw.replace(/\D/g, '');
+    if (cleaned.startsWith('0')) cleaned = '92' + cleaned.substring(1);
+    if (cleaned.length >= 10) {
+      customerDirectUrl = `https://wa.me/${cleaned}?text=${encoded}`;
+    }
+  }
 
   return {
     message,
     encoded,
     shareUrl,
     groupUrl,
+    customerDirectUrl,
   };
 }
 

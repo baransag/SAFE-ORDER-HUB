@@ -109,6 +109,7 @@ export default function NewOrderPage() {
   const [formattedMessage, setFormattedMessage] = useState('');
   const [whatsappShareUrl, setWhatsappShareUrl] = useState('');
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
+  const [whatsappOpened, setWhatsappOpened] = useState(false);
 
   const pakCities = ['Lahore', 'Faisalabad', 'Rawalpindi', 'Islamabad', 'Multan', 'Gujranwala', 'Sialkot', 'Karachi', 'Peshawar', 'Sahiwal', 'Sheikhupura', 'Kasur', 'Okara'];
 
@@ -530,58 +531,113 @@ export default function NewOrderPage() {
               </div>
             </div>
 
-            {/* WhatsApp Integration Action Buttons */}
+            {/* Step 4: Tracking Sharing Statuses */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-left text-xs space-y-2.5">
+              <div className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                Order & Sharing Verification Status
+              </div>
+              
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>1. Order Saved in Database</span>
+                </span>
+                <span className="font-mono font-bold text-emerald-700">#{createdOrder.orderNumber}</span>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>2. WhatsApp Message Prepared</span>
+                </span>
+                <span className="font-semibold text-emerald-700">Verified ({createdOrder.items.length} items)</span>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                  {whatsappOpened ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  ) : (
+                    <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  )}
+                  <span>3. WhatsApp Handoff</span>
+                </span>
+                <span className={`font-semibold ${whatsappOpened ? 'text-emerald-700' : 'text-amber-600'}`}>
+                  {whatsappOpened ? 'Opened in WhatsApp' : 'Ready to Share'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-200">
+                <span className="flex items-center gap-1.5 font-medium text-slate-600">
+                  <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>4. Group Delivery</span>
+                </span>
+                <span className="text-[10px] text-slate-500 italic">
+                  Press &apos;Send&apos; in WhatsApp after selecting group
+                </span>
+              </div>
+            </div>
+
+            {/* Step 3: Reliable WhatsApp Sharing Actions */}
             <div className="space-y-2.5 pt-2">
               
-              {/* Option 1: Post to SAFE SOLUTIONS WhatsApp Group */}
+              {/* Primary Action: Share Order on WhatsApp (Opens WhatsApp with prefilled message) */}
               <button
                 type="button"
                 onClick={() => {
                   const msg = formattedMessage || `🔔 NEW ORDER: ${createdOrder.orderNumber} - ${createdOrder.companyName}`;
-                  navigator.clipboard.writeText(msg).then(() => {
-                    setCopiedToClipboard(true);
-                    setTimeout(() => setCopiedToClipboard(false), 4000);
-                  });
-                  window.open(whatsappGroupUrl || 'https://chat.whatsapp.com/DEbbiG4JnLkCRaNVrSIieK', '_blank');
+                  // Copy as fallback safeguard
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(msg).catch(() => {});
+                  }
+                  setWhatsappOpened(true);
+                  // Open WhatsApp universal share link with full encoded message prefilled
+                  const shareUrl = whatsappShareUrl || `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                  const win = window.open(shareUrl, '_blank');
+                  if (!win || win.closed || typeof win.closed === 'undefined') {
+                    window.location.href = shareUrl;
+                  }
                 }}
-                className="w-full flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white font-bold text-sm shadow-lg shadow-emerald-600/25 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all"
+                className="w-full flex items-center justify-center gap-2.5 py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white font-black text-sm shadow-xl shadow-emerald-600/30 hover:shadow-2xl hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer"
               >
-                <Send className="w-4 h-4" />
-                <span>Post to SAFE SOLUTIONS WhatsApp Group 🚀</span>
+                <Share2 className="w-4 h-4 stroke-[3]" />
+                <span>Share Order on WhatsApp</span>
               </button>
 
               {copiedToClipboard && (
                 <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-semibold flex items-center justify-center gap-1.5 animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>✓ Formatted order copied! Just press Paste (Ctrl+V) in WhatsApp chat.</span>
+                  <span>✓ Complete order text copied to clipboard!</span>
                 </div>
               )}
 
-              {/* Option 2 & 3: Direct Share & Copy Text */}
+              {/* Secondary Options: Copy Message Fallback & Direct Group Link */}
               <div className="grid grid-cols-2 gap-2">
-                <a
-                  href={whatsappShareUrl || whatsappLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="py-2.5 px-3 rounded-xl border border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>Send via WhatsApp</span>
-                </a>
-
                 <button
                   type="button"
                   onClick={() => {
                     const msg = formattedMessage || `🔔 NEW ORDER: ${createdOrder.orderNumber}`;
-                    navigator.clipboard.writeText(msg);
-                    setCopiedToClipboard(true);
-                    setTimeout(() => setCopiedToClipboard(false), 3000);
+                    navigator.clipboard.writeText(msg).then(() => {
+                      setCopiedToClipboard(true);
+                      setTimeout(() => setCopiedToClipboard(false), 3500);
+                    });
                   }}
-                  className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                  className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs"
                 >
                   <Copy className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Copy Message</span>
+                  <span>Copy Order Text</span>
                 </button>
+
+                <a
+                  href={whatsappGroupUrl || 'https://chat.whatsapp.com/DEbbiG4JnLkCRaNVrSIieK'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-3 rounded-xl border border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                  title="Open SAFE SOLUTIONS Group directly"
+                >
+                  <Send className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Open Group Link</span>
+                </a>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5 pt-2">

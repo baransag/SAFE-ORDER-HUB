@@ -177,11 +177,13 @@ export default function OrderDetailsDrawer({
       .then(r => r.json())
       .then(d => {
         const msg = d.formattedMessage || `🔔 ORDER: ${order.orderNumber}`;
-        navigator.clipboard.writeText(msg).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 3500);
-        });
-        window.open(d.whatsappGroupUrl || 'https://chat.whatsapp.com/DEbbiG4JnLkCRaNVrSIieK', '_blank');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(msg).catch(() => {});
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 3500);
+        const shareUrl = d.whatsappShareUrl || `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+        window.open(shareUrl, '_blank');
       });
   };
 
