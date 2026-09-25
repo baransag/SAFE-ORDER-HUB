@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   Plus, 
+  Mic, 
   TrendingUp, 
   Package, 
   Clock, 
@@ -17,13 +18,22 @@ import {
   Building2,
   MapPin,
   FileSpreadsheet,
-  ArrowRight
+  ArrowRight,
+  Calendar,
+  MessageSquare,
+  Users,
+  Search,
+  Sparkles
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import MobileNav from '@/components/MobileNav';
 import OrderStatusBadge from '@/components/OrderStatusBadge';
 import OrderDetailsDrawer from '@/components/OrderDetailsDrawer';
+import VoiceOrderModal from '@/components/VoiceOrderModal';
+import VoiceOrdersInbox from '@/components/VoiceOrdersInbox';
+import SafeCopilot from '@/components/SafeCopilot';
 import { Order, User } from '@/lib/types';
+import { getUserAvatar, getUserInitials } from '@/lib/avatar';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -33,6 +43,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'VOICE_INBOX'>('OVERVIEW');
 
   useEffect(() => {
     fetchDashboardData();
@@ -77,100 +89,161 @@ export default function DashboardPage() {
     return 'Good Evening';
   };
 
+  const formattedDate = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
   const isFullAccess = currentUser && ['BOSS', 'CONTROLLER', 'MANAGER'].includes(currentUser.role);
+  const avatar = getUserAvatar(currentUser);
+  const initials = getUserInitials(currentUser?.name);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F6F8FC] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F8F6F4] flex items-center justify-center">
         <div className="text-center space-y-3">
-          <div className="w-10 h-10 rounded-full border-3 border-teal-600 border-t-transparent animate-spin mx-auto" />
-          <p className="text-xs text-slate-500 font-medium">Loading SAFE ORDER HUB...</p>
+          <div className="w-10 h-10 rounded-full border-3 border-[#B7937A] border-t-transparent animate-spin mx-auto" />
+          <p className="text-xs text-[#635858] font-medium tracking-wide">Connecting to SAFE ORDER HUB...</p>
         </div>
       </div>
     );
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 1. SALES USER DASHBOARD (Low-Data, Mobile-First, Action-Focused)
+  // 1. SALES USER DASHBOARD (Mobile-First, Low-Data, Personal Orders Only)
   // ─────────────────────────────────────────────────────────────
   if (!isFullAccess) {
     return (
-      <div className="min-h-screen bg-[#F6F8FC] pb-24 md:pb-12 text-[#172033]">
+      <div className="min-h-screen bg-[#F8F6F4] pb-24 md:pb-12 text-[#221D1D]">
         <Navbar currentUser={currentUser} />
 
-        <main className="max-w-xl mx-auto px-4 py-5 space-y-5">
-          {/* Greeting Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                {getGreeting()}, {currentUser?.name?.split(' ')[0]} 👋
-              </h1>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                {currentUser?.designation} • SAFE SOLUTIONS
-              </p>
+        <main className="max-w-2xl mx-auto px-4 py-5 space-y-5">
+          {/* Main Hero Banner for Sales Employee */}
+          <div className="korean-card p-5 sm:p-6 relative overflow-hidden">
+            <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full grad-hero-banner blur-2xl opacity-70 pointer-events-none" />
+            <div className="absolute -left-6 -bottom-6 w-32 h-32 rounded-full bg-[#BCAEC4]/20 blur-xl pointer-events-none" />
+
+            <div className="flex items-center gap-4 relative z-10">
+              {avatar ? (
+                <img 
+                  src={avatar} 
+                  alt={currentUser?.name} 
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-white shadow-sm"
+                />
+              ) : (
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#BCAEC4]/30 border-2 border-white shadow-sm flex items-center justify-center text-lg font-black text-[#221D1D]">
+                  {initials}
+                </div>
+              )}
+
+              <div className="flex-1">
+                <div className="text-[11px] font-semibold text-[#AF9292] tracking-wide uppercase">
+                  {formattedDate}
+                </div>
+                <h1 className="text-lg sm:text-xl font-black text-[#221D1D] tracking-tight">
+                  {getGreeting()}, {currentUser?.name?.split(' ')[0]} 👋
+                </h1>
+                <p className="text-xs text-[#635858]">
+                  {currentUser?.designation} • SAFE SOLUTIONS
+                </p>
+              </div>
+
+              <Link
+                href="/profile"
+                className="text-[11px] font-semibold text-[#B7937A] hover:underline"
+              >
+                Profile
+              </Link>
             </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-              Active Session
-            </span>
+
+            {/* Quick stats ribbon */}
+            <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-[#E6DDDD]/60">
+              <div className="bg-white/80 p-3 rounded-xl border border-[#E6DDDD]">
+                <span className="text-[11px] text-[#635858] font-semibold block">Today&apos;s Bookings</span>
+                <span className="text-2xl font-black font-mono text-[#221D1D]">{stats?.todayOrders ?? 0}</span>
+                <span className="text-[10px] text-[#AF9292] block mt-0.5 font-medium">Recorded by you</span>
+              </div>
+              <div className="bg-white/80 p-3 rounded-xl border border-[#E6DDDD]">
+                <span className="text-[11px] text-[#635858] font-semibold block">Pending Delivery</span>
+                <span className="text-2xl font-black font-mono text-amber-700">{stats?.pendingDeliveries ?? 0}</span>
+                <span className="text-[10px] text-amber-800 block mt-0.5 font-medium">In transit / prep</span>
+              </div>
+            </div>
           </div>
 
-          {/* Quick High-Impact Counters: Today's Orders & Pending */}
-          <div className="grid grid-cols-2 gap-3.5">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden">
-              <div className="absolute -right-3 -bottom-3 w-16 h-16 grad-mint-blush rounded-full blur-xl opacity-60 pointer-events-none" />
-              <div className="text-xs font-semibold text-slate-500 mb-1 flex items-center justify-between">
-                <span>Today&apos;s Orders</span>
-                <Package className="w-4 h-4 text-teal-600" />
+          {/* Primary Action Buttons: ＋ NEW ORDER & 🎙️ VOICE ORDER */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Link
+              href="/orders/new"
+              className="p-4 rounded-2xl bg-gradient-to-r from-[#AF9292] to-[#B7937A] hover:opacity-95 text-white font-bold flex items-center justify-between shadow-md transition-all active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Plus className="w-6 h-6 stroke-[3]" />
+                </div>
+                <div>
+                  <div className="text-sm tracking-tight font-black">＋ CREATE NEW ORDER</div>
+                  <div className="text-[11px] text-white/80 font-normal">Standard order booking form</div>
+                </div>
               </div>
-              <div className="text-3xl font-black text-slate-900 font-mono">
-                {stats?.todayOrdersCount ?? 0}
-              </div>
-              <span className="text-[10px] text-teal-700 font-semibold mt-1 inline-block">
-                Logged today
-              </span>
-            </div>
+              <ArrowRight className="w-5 h-5 opacity-80" />
+            </Link>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden">
-              <div className="absolute -right-3 -bottom-3 w-16 h-16 grad-champagne-coral rounded-full blur-xl opacity-60 pointer-events-none" />
-              <div className="text-xs font-semibold text-slate-500 mb-1 flex items-center justify-between">
-                <span>Pending Delivery</span>
-                <Clock className="w-4 h-4 text-amber-600" />
+            <button
+              onClick={() => setIsVoiceModalOpen(true)}
+              className="p-4 rounded-2xl bg-white border border-[#C8B5A9] hover:border-[#B7937A] text-[#221D1D] font-bold flex items-center justify-between shadow-xs transition-all active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#BCAEC4]/30 text-[#AF9292] flex items-center justify-center">
+                  <Mic className="w-5 h-5 text-[#B7937A]" />
+                </div>
+                <div className="text-left">
+                  <div className="text-sm tracking-tight font-black">🎙️ RECORD VOICE ORDER</div>
+                  <div className="text-[11px] text-[#635858] font-normal">Record call or client voice note</div>
+                </div>
               </div>
-              <div className="text-3xl font-black text-amber-600 font-mono">
-                {stats?.pendingReviewOrders ?? 0}
-              </div>
-              <span className="text-[10px] text-amber-700 font-medium mt-1 inline-block">
-                In process / fulfillment
-              </span>
-            </div>
+              <ChevronRight className="w-5 h-5 text-[#C8B5A9]" />
+            </button>
           </div>
 
-          {/* Giant Primary Action: ＋ NEW ORDER */}
-          <Link
-            href="/orders/new"
-            className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 text-white font-extrabold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-600/25 hover:shadow-xl hover:scale-[1.01] active:scale-[0.98] transition-all"
-          >
-            <Plus className="w-6 h-6 stroke-[3]" />
-            <span>＋ NEW ORDER</span>
-          </Link>
+          {/* Approved Thank You Templates Shortcut */}
+          <div className="korean-card p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#FAF8F6] text-[#B7937A] flex items-center justify-center">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-[#221D1D]">Customer Thank-You Messages</div>
+                <div className="text-[11px] text-[#635858]">Approved Urdu & English communication templates</div>
+              </div>
+            </div>
+            <Link
+              href="/templates"
+              className="text-xs font-bold text-[#B7937A] hover:underline flex items-center gap-1"
+            >
+              <span>View</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
 
-          {/* Recent Orders List */}
+          {/* Recent Orders Section (Sales Employee's Own Orders Only) */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-500">
-                Recent Orders Booked By You
-              </h3>
-              <Link href="/orders" className="text-xs text-teal-700 font-bold hover:underline flex items-center gap-0.5">
-                <span>View all</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold tracking-tight text-[#221D1D] uppercase">
+                My Recent Orders
+              </h2>
+              <Link href="/orders" className="text-xs text-[#B7937A] hover:underline font-semibold">
+                View All Orders
               </Link>
             </div>
 
             {recentOrders.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-8 text-center space-y-2">
-                <Package className="w-8 h-8 text-slate-300 mx-auto" />
-                <p className="text-xs font-semibold text-slate-600">No orders logged yet</p>
-                <p className="text-[11px] text-slate-400">Press the green button above to book your first order.</p>
+              <div className="korean-card p-8 text-center space-y-2">
+                <Package className="w-8 h-8 text-[#C8B5A9] mx-auto opacity-70" />
+                <p className="text-xs font-bold text-[#221D1D]">No orders logged yet</p>
+                <p className="text-[11px] text-[#635858]">Tap &quot;Create New Order&quot; or &quot;Voice Order&quot; to book your first client sale.</p>
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -181,35 +254,23 @@ export default function DashboardPage() {
                       setSelectedOrder(order);
                       setIsDrawerOpen(true);
                     }}
-                    className="bg-white p-3.5 rounded-2xl border border-slate-200/80 hover:border-teal-300 hover:shadow-md cursor-pointer transition-all active:scale-[0.99] space-y-2"
+                    className="korean-card p-3.5 flex items-center justify-between gap-3 cursor-pointer hover:border-[#B7937A] transition-all"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-slate-900">{order.orderNumber}</span>
-                        <OrderStatusBadge status={order.status} size="sm" />
+                        <span className="font-mono text-xs font-bold text-[#221D1D]">
+                          {order.orderNumber}
+                        </span>
+                        <OrderStatusBadge status={order.status} />
                       </div>
-                      <span className="text-[11px] font-bold text-slate-900 font-mono">
-                        Rs. {order.grandTotal.toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-slate-600">
-                      <div className="flex items-center gap-1.5 font-semibold text-slate-800 truncate max-w-[200px]">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{order.companyName}</span>
+                      <div className="text-xs font-semibold text-[#221D1D]">
+                        {order.customerName} • <span className="text-[#635858] font-normal">{order.city}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] text-slate-400">
-                        <MapPin className="w-3 h-3" />
-                        <span>{order.city}</span>
+                      <div className="text-[10px] text-[#635858]">
+                        Rs. {order.grandTotal.toLocaleString()} • {order.items.length} item(s)
                       </div>
                     </div>
-
-                    <div className="text-[11px] text-slate-500 truncate border-t border-slate-100 pt-1.5 flex justify-between">
-                      <span className="truncate max-w-[220px]">
-                        {order.items.map(i => `${i.productName} (${i.quantity})`).join(', ')}
-                      </span>
-                      <span className="text-teal-700 font-bold shrink-0">Details →</span>
-                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#C8B5A9]" />
                   </div>
                 ))}
               </div>
@@ -217,338 +278,356 @@ export default function DashboardPage() {
           </div>
         </main>
 
+        <MobileNav />
+
+        {/* Voice Order Recording Modal */}
+        <VoiceOrderModal
+          isOpen={isVoiceModalOpen}
+          onClose={() => setIsVoiceModalOpen(false)}
+          currentUser={currentUser}
+          onOrderCreated={fetchDashboardData}
+        />
+
+        {/* Order Details Drawer */}
         <OrderDetailsDrawer
-          order={selectedOrder}
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
+          order={selectedOrder}
           currentUser={currentUser}
           onOrderUpdated={fetchDashboardData}
         />
-
-        <MobileNav />
       </div>
     );
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2. MANAGEMENT DASHBOARD (Full Executive Control View)
+  // 2. MANAGEMENT EXECUTIVE DASHBOARD (Boss, Controller, Manager)
   // ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F6F8FC] pb-24 md:pb-12 text-[#172033]">
+    <div className="min-h-screen bg-[#F8F6F4] pb-24 md:pb-12 text-[#221D1D]">
       <Navbar currentUser={currentUser} />
 
-      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-6 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-6 space-y-7">
         
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
-                {getGreeting()}, {currentUser?.name} 👋
-              </h1>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Executive overview & order fulfillment controls for <span className="font-semibold text-slate-700">SAFE SOLUTIONS</span>.
-            </p>
-          </div>
+        {/* Management Hero Banner */}
+        <div className="korean-card p-6 sm:p-8 relative overflow-hidden">
+          <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full grad-hero-banner blur-3xl opacity-80 pointer-events-none" />
+          <div className="absolute -left-12 -bottom-12 w-48 h-48 rounded-full bg-[#BCAEC4]/25 blur-2xl pointer-events-none" />
 
-          <div className="flex items-center gap-3">
-            <Link
-              href="/orders/new"
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>＋ CREATE NEW ORDER</span>
-            </Link>
-          </div>
-        </div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+            <div className="flex items-center gap-4 sm:gap-5">
+              {avatar ? (
+                <img 
+                  src={avatar} 
+                  alt={currentUser?.name} 
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl object-cover border-2 border-white shadow-md"
+                />
+              ) : (
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-[#BCAEC4]/30 border-2 border-white shadow-md flex items-center justify-center text-2xl font-black text-[#221D1D]">
+                  {initials}
+                </div>
+              )}
 
-        {/* Executive KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
-          
-          {/* Card 1: Today's Orders */}
-          <div className="korean-card p-4 relative overflow-hidden group korean-card-hover">
-            <div className="absolute -right-4 -bottom-4 w-20 h-20 grad-mint-blush rounded-full blur-xl opacity-60 pointer-events-none" />
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-              <span className="font-semibold">Today&apos;s Orders</span>
-              <Package className="w-4 h-4 text-teal-600" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
-              {stats?.todayOrdersCount ?? 0}
-            </div>
-            <div className="text-[11px] text-teal-600 font-semibold mt-1 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" />
-              <span>Active booking</span>
-            </div>
-          </div>
-
-          {/* Card 2: Today's Sales Volume */}
-          <div className="korean-card p-4 relative overflow-hidden group korean-card-hover">
-            <div className="absolute -right-4 -bottom-4 w-20 h-20 grad-lime-sky rounded-full blur-xl opacity-60 pointer-events-none" />
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-              <span className="font-semibold">Today&apos;s Sales</span>
-              <DollarSign className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono truncate">
-              Rs. {(stats?.todaySales ?? 0).toLocaleString()}
-            </div>
-            <div className="text-[11px] text-slate-400 mt-1">
-              Total: Rs. {(stats?.totalSales ?? 0).toLocaleString()}
-            </div>
-          </div>
-
-          {/* Card 3: Pending / Rate Review */}
-          <div className="korean-card p-4 relative overflow-hidden group korean-card-hover">
-            <div className="absolute -right-4 -bottom-4 w-20 h-20 grad-champagne-coral rounded-full blur-xl opacity-60 pointer-events-none" />
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-              <span className="font-semibold">Pending Review</span>
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-600 font-mono">
-              {String(stats?.pendingReviewOrders ?? 0).padStart(2, '0')}
-            </div>
-            <div className="text-[11px] text-amber-700 font-medium mt-1">
-              Requires attention
-            </div>
-          </div>
-
-          {/* Card 4: Processing / In Transit */}
-          <div className="korean-card p-4 relative overflow-hidden group korean-card-hover">
-            <div className="absolute -right-4 -bottom-4 w-20 h-20 grad-pink-cyan rounded-full blur-xl opacity-60 pointer-events-none" />
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-              <span className="font-semibold">Processing</span>
-              <Truck className="w-4 h-4 text-indigo-600" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
-              {String(stats?.processingOrders ?? 0).padStart(2, '0')}
-            </div>
-            <div className="text-[11px] text-indigo-600 font-semibold mt-1">
-              In preparation / transit
-            </div>
-          </div>
-
-          {/* Card 5: Delivered */}
-          <div className="korean-card p-4 relative overflow-hidden group korean-card-hover col-span-2 lg:col-span-1">
-            <div className="absolute -right-4 -bottom-4 w-20 h-20 grad-lavender-emerald rounded-full blur-xl opacity-60 pointer-events-none" />
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-              <span className="font-semibold">Delivered</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono">
-              {String(stats?.deliveredOrders ?? 0).padStart(2, '0')}
-            </div>
-            <div className="text-[11px] text-emerald-700 font-medium mt-1">
-              Fulfillment complete
-            </div>
-          </div>
-
-        </div>
-
-        {/* Analytics & Product Breakdown */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Product Performance Bar Chart */}
-          <div className="korean-card p-6 space-y-4 lg:col-span-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-sm text-slate-900">Product Sales Volume Breakdown</h3>
-                <p className="text-xs text-slate-500">Real revenue by construction chemicals & waterproofing materials</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-[#AF9292] uppercase tracking-wider">
+                    {formattedDate}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#BCAEC4]/30 text-[#221D1D] border border-[#C8B5A9]">
+                    {currentUser?.role === 'BOSS' ? '👑 EXECUTIVE DESK' : currentUser?.role === 'CONTROLLER' ? '🛡️ OPERATIONS CONTROLLER' : '👔 FINANCE & ACCOUNTS'}
+                  </span>
+                </div>
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-[#221D1D] tracking-tight">
+                  {getGreeting()}, {currentUser?.name} 👋
+                </h1>
+                <p className="text-xs sm:text-sm text-[#635858]">
+                  Central executive overview, order fulfillment, deliveries, and operations for <strong className="text-[#221D1D]">SAFE SOLUTIONS</strong>.
+                </p>
               </div>
-              <Link href="/products" className="text-xs text-teal-600 font-semibold hover:underline flex items-center gap-1">
-                <span>Manage rates</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+            </div>
+
+            {/* Quick Action Shortcuts */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={() => setIsVoiceModalOpen(true)}
+                className="px-4 py-2.5 rounded-xl bg-white hover:bg-[#FAF8F6] text-[#221D1D] border border-[#C8B5A9] font-bold text-xs flex items-center gap-2 shadow-xs transition-all"
+              >
+                <Mic className="w-4 h-4 text-[#B7937A]" />
+                <span>🎙️ Voice Order</span>
+              </button>
+
+              <Link
+                href="/orders/new"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#AF9292] to-[#B7937A] hover:opacity-95 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>＋ CREATE NEW ORDER</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Dashboard Navigation Tabs */}
+        <div className="flex items-center gap-2 border-b border-[#E6DDDD] pb-2 text-xs font-bold">
+          <button
+            onClick={() => setActiveTab('OVERVIEW')}
+            className={`px-4 py-2 rounded-xl transition-all ${
+              activeTab === 'OVERVIEW' 
+                ? 'bg-[#221D1D] text-white shadow-xs' 
+                : 'text-[#635858] hover:text-[#221D1D] hover:bg-white'
+            }`}
+          >
+            Executive Overview & KPIs
+          </button>
+          <button
+            onClick={() => setActiveTab('VOICE_INBOX')}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeTab === 'VOICE_INBOX' 
+                ? 'bg-[#221D1D] text-white shadow-xs' 
+                : 'text-[#635858] hover:text-[#221D1D] hover:bg-white'
+            }`}
+          >
+            <span>🎙️ Voice Orders Inbox</span>
+          </button>
+        </div>
+
+        {activeTab === 'VOICE_INBOX' ? (
+          <VoiceOrdersInbox 
+            currentUser={currentUser} 
+            onRefresh={fetchDashboardData} 
+          />
+        ) : (
+          <>
+            {/* Executive KPI Cards (Real PostgreSQL Metrics Only) */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
+              {/* Card 1: Today's Orders */}
+              <div className="korean-card p-4 relative overflow-hidden group korean-card-hover">
+                <div className="flex items-center justify-between text-xs text-[#635858] mb-2">
+                  <span className="font-semibold">Today&apos;s Orders</span>
+                  <Package className="w-4 h-4 text-[#B7937A]" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-[#221D1D] font-mono">
+                  {stats?.todayOrders ?? 0}
+                </div>
+                <div className="text-[11px] text-[#AF9292] font-semibold mt-1 flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3" />
+                  <span>Booked today</span>
+                </div>
+              </div>
+
+              {/* Card 2: Total Revenue */}
+              <div className="korean-card p-4 relative overflow-hidden group korean-card-hover">
+                <div className="flex items-center justify-between text-xs text-[#635858] mb-2">
+                  <span className="font-semibold">Total Sales</span>
+                  <DollarSign className="w-4 h-4 text-[#AF9292]" />
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-[#221D1D] font-mono truncate">
+                  Rs. {(stats?.totalRevenue ?? 0).toLocaleString()}
+                </div>
+                <div className="text-[11px] text-[#635858] mt-1">
+                  Total Booked: {stats?.totalOrders ?? 0}
+                </div>
+              </div>
+
+              {/* Card 3: Pending Delivery */}
+              <div className="korean-card p-4 relative overflow-hidden group korean-card-hover">
+                <div className="flex items-center justify-between text-xs text-[#635858] mb-2">
+                  <span className="font-semibold">Pending Delivery</span>
+                  <Truck className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-amber-700 font-mono">
+                  {stats?.pendingDeliveries ?? 0}
+                </div>
+                <div className="text-[11px] text-amber-800 font-semibold mt-1">
+                  Dispatched / In-Transit
+                </div>
+              </div>
+
+              {/* Card 4: Rate Reviews Required */}
+              <div className="korean-card p-4 relative overflow-hidden group korean-card-hover">
+                <div className="flex items-center justify-between text-xs text-[#635858] mb-2">
+                  <span className="font-semibold">Rate Reviews</span>
+                  <AlertTriangle className="w-4 h-4 text-rose-500" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-rose-600 font-mono">
+                  {stats?.pendingRateReviews ?? 0}
+                </div>
+                <div className="text-[11px] text-rose-700 font-semibold mt-1">
+                  Special rate approval
+                </div>
+              </div>
+
+              {/* Card 5: Delivered Orders */}
+              <div className="korean-card p-4 relative overflow-hidden group korean-card-hover col-span-2 lg:col-span-1">
+                <div className="flex items-center justify-between text-xs text-[#635858] mb-2">
+                  <span className="font-semibold">Delivered</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-700 font-mono">
+                  {stats?.deliveredCount ?? 0}
+                </div>
+                <div className="text-[11px] text-emerald-800 font-semibold mt-1">
+                  Completed site fulfillment
+                </div>
+              </div>
+            </div>
+
+            {/* Operational Management Shortcuts Ribbon */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Link 
+                href="/deliveries"
+                className="korean-card p-3.5 flex items-center gap-3 hover:border-[#B7937A] transition-all"
+              >
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+                  <Truck className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-[#221D1D]">Delivery Desk</div>
+                  <div className="text-[10px] text-[#635858]">Dispatch & Proofs</div>
+                </div>
+              </Link>
+
+              <Link 
+                href="/templates"
+                className="korean-card p-3.5 flex items-center gap-3 hover:border-[#B7937A] transition-all"
+              >
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-[#221D1D]">Message Templates</div>
+                  <div className="text-[10px] text-[#635858]">10 Thank-You Presets</div>
+                </div>
+              </Link>
+
+              <Link 
+                href="/reports"
+                className="korean-card p-3.5 flex items-center gap-3 hover:border-[#B7937A] transition-all"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-[#221D1D]">Reports & BI</div>
+                  <div className="text-[10px] text-[#635858]">Excel & Sales Exports</div>
+                </div>
+              </Link>
+
+              <Link 
+                href="/team"
+                className="korean-card p-3.5 flex items-center gap-3 hover:border-[#B7937A] transition-all"
+              >
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-[#221D1D]">Authorized Team</div>
+                  <div className="text-[10px] text-[#635858]">8 Approved Accounts</div>
+                </div>
               </Link>
             </div>
 
-            <div className="space-y-3.5 pt-2">
-              {(!stats?.productRanking || stats.productRanking.length === 0) ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  <Package className="w-8 h-8 text-slate-200 mx-auto mb-1.5" />
-                  <span>No products sold yet. Create orders to see live volume analytics.</span>
+            {/* Recent Orders Table */}
+            <div className="korean-card p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-[#221D1D] tracking-tight">
+                    Recent Orders & Live Fulfillment
+                  </h2>
+                  <p className="text-xs text-[#635858]">
+                    Click any order to inspect multi-product details, payment status, delivery proof, or status timeline.
+                  </p>
+                </div>
+                <Link
+                  href="/orders"
+                  className="text-xs font-bold text-[#B7937A] hover:underline flex items-center gap-1"
+                >
+                  <span>View All Orders</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
+
+              {recentOrders.length === 0 ? (
+                <div className="py-12 text-center text-xs text-[#635858]">
+                  No orders found. Use &quot;Create New Order&quot; to book an order.
                 </div>
               ) : (
-                stats.productRanking.slice(0, 5).map((prod: any, idx: number) => {
-                  const maxAmt = stats.productRanking[0]?.amount || 1;
-                  const pct = Math.round((prod.amount / maxAmt) * 100);
-                  const gradientClass = [
-                    'grad-lavender-emerald',
-                    'grad-lime-sky',
-                    'grad-mint-blush',
-                    'grad-champagne-coral',
-                    'grad-pink-cyan',
-                  ][idx % 5];
-
-                  return (
-                    <div key={prod.name} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-lg bg-slate-100 text-slate-600 font-bold text-[10px] flex items-center justify-center">
-                            0{idx + 1}
-                          </span>
-                          <span className="font-semibold text-slate-800">{prod.name}</span>
-                          <span className="text-[10px] text-slate-400">({prod.quantity} units)</span>
-                        </div>
-                        <span className="font-bold text-slate-900 font-mono">
-                          Rs. {prod.amount.toLocaleString()}
-                        </span>
-                      </div>
-                      
-                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full ${gradientClass} transition-all duration-500`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-[#E6DDDD] text-[#635858] font-semibold">
+                        <th className="pb-3 pl-2">Order #</th>
+                        <th className="pb-3">Customer & Site</th>
+                        <th className="pb-3">City</th>
+                        <th className="pb-3">Salesperson</th>
+                        <th className="pb-3">Status</th>
+                        <th className="pb-3">Payment</th>
+                        <th className="pb-3 text-right pr-2">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E6DDDD]/60">
+                      {recentOrders.map(o => (
+                        <tr
+                          key={o.id}
+                          onClick={() => {
+                            setSelectedOrder(o);
+                            setIsDrawerOpen(true);
+                          }}
+                          className="hover:bg-[#FAF8F6] cursor-pointer transition-colors"
+                        >
+                          <td className="py-3.5 pl-2 font-mono font-bold text-[#221D1D]">
+                            {o.orderNumber}
+                          </td>
+                          <td className="py-3.5">
+                            <div className="font-bold text-[#221D1D]">{o.customerName}</div>
+                            <div className="text-[11px] text-[#635858] truncate max-w-xs">{o.companyName}</div>
+                          </td>
+                          <td className="py-3.5 text-[#635858] font-medium">{o.city}</td>
+                          <td className="py-3.5 text-[#635858] font-medium">{o.orderTakenByName}</td>
+                          <td className="py-3.5">
+                            <OrderStatusBadge status={o.status} />
+                          </td>
+                          <td className="py-3.5">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FAF8F6] text-[#635858] border border-[#E6DDDD]">
+                              {o.paymentStatus}
+                            </span>
+                          </td>
+                          <td className="py-3.5 pr-2 text-right font-mono font-bold text-[#221D1D]">
+                            Rs. {o.grandTotal.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-          </div>
-
-          {/* Quick Management Navigation Card */}
-          <div className="korean-card p-6 space-y-4 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Executive Privilege</span>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                  {currentUser?.role}
-                </span>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-teal-50/70 border border-teal-200/80 space-y-1.5">
-                <div className="flex items-center gap-2 text-teal-900 font-bold text-xs">
-                  <ShieldCheck className="w-4 h-4 text-teal-700" />
-                  <span>{currentUser?.designation}</span>
-                </div>
-                <p className="text-[11px] text-teal-800 leading-relaxed">
-                  Full administrative & operational authority over company orders, customer accounts, rate approvals, logistics, and audit trails.
-                </p>
-              </div>
-
-              {/* Quick links */}
-              <div className="mt-4 space-y-2 text-xs">
-                <Link 
-                  href="/customers"
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 font-semibold text-slate-700 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-teal-600" />
-                    Customer Database
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                </Link>
-
-                <Link 
-                  href="/deliveries"
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 font-semibold text-slate-700 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Truck className="w-4 h-4 text-indigo-600" />
-                    Delivery Logistics & Proofs
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                </Link>
-
-                <Link 
-                  href="/reports"
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 font-semibold text-slate-700 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                    Business Reports & Exports
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                </Link>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Recent Orders Table */}
-        <div className="korean-card p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-sm text-slate-900">Latest Company Orders</h3>
-              <p className="text-xs text-slate-500">Live feed of orders booked across all territories</p>
-            </div>
-            <Link href="/orders" className="text-xs text-teal-600 font-semibold hover:underline flex items-center gap-1">
-              <span>View all orders</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {recentOrders.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-400">
-              <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <span>No orders registered yet. Click &quot;CREATE NEW ORDER&quot; to begin.</span>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/80 text-slate-500 border-b border-slate-100">
-                  <tr>
-                    <th className="px-3.5 py-2.5 font-semibold">Order ID</th>
-                    <th className="px-3.5 py-2.5 font-semibold">Client / Site</th>
-                    <th className="px-3.5 py-2.5 font-semibold">City</th>
-                    <th className="px-3.5 py-2.5 font-semibold">Sales Rep</th>
-                    <th className="px-3.5 py-2.5 font-semibold text-right">Amount</th>
-                    <th className="px-3.5 py-2.5 font-semibold text-center">Status</th>
-                    <th className="px-3.5 py-2.5 font-semibold text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recentOrders.map(order => (
-                    <tr 
-                      key={order.id} 
-                      onClick={() => {
-                        setSelectedOrder(order);
-                        setIsDrawerOpen(true);
-                      }}
-                      className="hover:bg-slate-50/60 cursor-pointer transition-colors"
-                    >
-                      <td className="px-3.5 py-3 font-mono font-bold text-slate-900">
-                        {order.orderNumber}
-                      </td>
-                      <td className="px-3.5 py-3">
-                        <div className="font-semibold text-slate-800">{order.companyName}</div>
-                        <div className="text-[11px] text-slate-400">{order.customerName}</div>
-                      </td>
-                      <td className="px-3.5 py-3 text-slate-600">
-                        {order.city}
-                      </td>
-                      <td className="px-3.5 py-3 text-slate-600">
-                        {order.orderTakenByName}
-                      </td>
-                      <td className="px-3.5 py-3 text-right font-mono font-bold text-slate-900">
-                        Rs. {order.grandTotal.toLocaleString()}
-                      </td>
-                      <td className="px-3.5 py-3 text-center">
-                        <OrderStatusBadge status={order.status} size="sm" />
-                      </td>
-                      <td className="px-3.5 py-3 text-right">
-                        <span className="text-teal-600 font-bold hover:underline">Manage →</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+          </>
+        )}
 
       </main>
 
+      <MobileNav />
+
+      {/* Voice Order Recording Modal */}
+      <VoiceOrderModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        currentUser={currentUser}
+        onOrderCreated={fetchDashboardData}
+      />
+
+      {/* Order Details Drawer */}
       <OrderDetailsDrawer
-        order={selectedOrder}
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
+        order={selectedOrder}
         currentUser={currentUser}
         onOrderUpdated={fetchDashboardData}
       />
 
-      <MobileNav />
+      {/* Floating Safe Copilot Assistant */}
+      <SafeCopilot currentUser={currentUser} />
     </div>
   );
 }

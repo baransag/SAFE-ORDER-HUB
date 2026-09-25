@@ -1,90 +1,88 @@
 @import "tailwindcss";
 
 :root {
-  --bg-main: #F7F9FC;
-  --card-bg: rgba(255, 255, 255, 0.96);
-  --card-border: rgba(226, 232, 240, 0.8);
-  --primary-accent: #1EAE98;
+  --dusty-rose: #AF9292;
+  --soft-lavender: #BCAEC4;
+  --warm-taupe: #B7937A;
+  --muted-beige: #C8B5A9;
+  --pearl-white: #E6DDDD;
+
+  --bg-main: #F8F6F4;
+  --bg-card: rgba(255, 255, 255, 0.94);
+  --card-border: rgba(183, 147, 122, 0.22);
+  --card-border-hover: rgba(175, 146, 146, 0.45);
+  --primary-accent: #B7937A;
+  --text-primary: #221D1D;
+  --text-secondary: #635858;
 }
 
 body {
   background-color: var(--bg-main);
-  color: #0F172A;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", "Geist", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Gradient Presets from Design Direction */
-.grad-mint-blush {
-  background: linear-gradient(135deg, #A9F1DF 0%, #FFBBBB 100%);
+/* Palette-Inspired Soft Gradient Presets */
+.grad-rose-taupe {
+  background: linear-gradient(135deg, #AF9292 0%, #B7937A 100%);
 }
 
-.grad-lavender-emerald {
-  background: linear-gradient(135deg, #D8B5FF 0%, #1EAE98 100%);
+.grad-lavender-rose {
+  background: linear-gradient(135deg, #BCAEC4 0%, #AF9292 100%);
 }
 
-.grad-lime-sky {
-  background: linear-gradient(135deg, #BFF098 0%, #6FD6FF 100%);
+.grad-pearl-beige {
+  background: linear-gradient(135deg, #E6DDDD 0%, #C8B5A9 100%);
 }
 
-.grad-lime-pink {
-  background: linear-gradient(135deg, #C6EA8D 0%, #FE90AF 100%);
+.grad-taupe-pearl {
+  background: linear-gradient(135deg, #B7937A 0%, #E6DDDD 100%);
 }
 
-.grad-champagne-coral {
-  background: linear-gradient(135deg, #F1EAB9 0%, #FF8C8C 100%);
+.grad-lavender-taupe {
+  background: linear-gradient(135deg, #BCAEC4 0%, #B7937A 100%);
 }
 
-.grad-coral-violet {
-  background: linear-gradient(135deg, #EA8D8D 0%, #A890FE 100%);
+.grad-hero-banner {
+  background: linear-gradient(135deg, #FAF7F5 0%, #F3EDEA 50%, #EDE5E1 100%);
 }
 
-.grad-electric-cream {
-  background: linear-gradient(135deg, #00B7FF 0%, #FFFFC7 100%);
+.grad-subtle-glow {
+  background: radial-gradient(circle at 50% 0%, rgba(188, 174, 196, 0.25) 0%, rgba(175, 146, 146, 0.15) 50%, transparent 80%);
 }
 
-.grad-pink-cyan {
-  background: linear-gradient(135deg, #FCA5F1 0%, #B5FFFF 100%);
-}
-
-.grad-magenta-yellow {
-  background: linear-gradient(135deg, #D74177 0%, #FFE98A 100%);
-}
-
-.grad-teal-raspberry {
-  background: linear-gradient(135deg, #38ADAE 0%, #CD295A 100%);
-}
-
-/* Subtle Glow and Card styles */
+/* Refined Korean / American SaaS Card Styles */
 .korean-card {
-  background: var(--card-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--card-border);
-  border-radius: 22px;
-  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
+  border-radius: 20px;
+  box-shadow: 0 8px 24px -6px rgba(45, 36, 36, 0.04), 0 2px 8px -2px rgba(45, 36, 36, 0.02);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .korean-card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 36px -12px rgba(15, 23, 42, 0.09), 0 8px 16px -4px rgba(15, 23, 42, 0.04);
+  border-color: var(--card-border-hover);
+  box-shadow: 0 16px 36px -10px rgba(45, 36, 36, 0.08), 0 4px 12px -2px rgba(45, 36, 36, 0.04);
 }
 
 .glass-nav {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(250, 248, 246, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  border-bottom: 1px solid rgba(183, 147, 122, 0.2);
 }
 
 .glass-bottom-bar {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(226, 232, 240, 0.85);
-  box-shadow: 0 12px 35px -8px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(183, 147, 122, 0.25);
+  box-shadow: 0 12px 35px -8px rgba(45, 36, 36, 0.12);
   border-radius: 9999px;
 }
 
@@ -99,12 +97,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: #C8B5A9;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: #B7937A;
 }
 
 /* Pulse badge animation */

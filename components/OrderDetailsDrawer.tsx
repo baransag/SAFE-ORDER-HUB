@@ -433,85 +433,153 @@ export default function OrderDetailsDrawer({
             </div>
           )}
 
-          {/* Management Status Controls */}
+          {/* Management Status & Payment Controls */}
           {isFullAccess && (
-            <div className="p-4 rounded-2xl bg-teal-50/50 border border-teal-100 space-y-3">
-              <div className="text-xs font-bold text-teal-900 uppercase tracking-wider">
-                Management Status Controls
+            <div className="p-4 rounded-2xl bg-[#FAF8F6] border border-[#B7937A]/25 space-y-4">
+              {/* Order Status Control */}
+              <div>
+                <div className="text-xs font-bold text-[#221D1D] uppercase tracking-wider mb-2">
+                  Order Workflow Status
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {order.status !== 'CONFIRMED' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('CONFIRMED')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-[#B7937A] hover:opacity-90 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      ✓ Confirm Order
+                    </button>
+                  )}
+                  {order.status !== 'PREPARING' && order.status !== 'DELIVERED' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('PREPARING')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-[#BCAEC4] hover:opacity-90 text-[#221D1D] rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      📦 Preparing
+                    </button>
+                  )}
+                  {order.status !== 'READY_FOR_DISPATCH' && order.status !== 'DELIVERED' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('READY_FOR_DISPATCH')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      🏷️ Ready for Dispatch
+                    </button>
+                  )}
+                  {order.status !== 'DISPATCHED' && order.status !== 'DELIVERED' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('DISPATCHED')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      🚚 Dispatched
+                    </button>
+                  )}
+                  {order.status !== 'OUT_FOR_DELIVERY' && order.status !== 'DELIVERED' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('OUT_FOR_DELIVERY')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      📍 Out for Delivery
+                    </button>
+                  )}
+                  {order.status !== 'DELIVERED' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('DELIVERED')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      🎉 Mark Delivered
+                    </button>
+                  )}
+                  {order.status === 'DELIVERED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('COMPLETED')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      🏁 Mark Completed
+                    </button>
+                  )}
+                  {order.status !== 'PARTIALLY_DELIVERED' && order.status !== 'DELIVERED' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('PARTIALLY_DELIVERED')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      🌗 Partially Delivered
+                    </button>
+                  )}
+                  {order.status !== 'ON_HOLD' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('ON_HOLD')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-[#E6DDDD] hover:bg-[#C8B5A9] text-[#221D1D] rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      ⏸️ On Hold
+                    </button>
+                  )}
+                  {order.status !== 'RETURNED' && order.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('RETURNED')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 rounded-xl text-xs font-bold transition-all"
+                    >
+                      ↩️ Mark Returned
+                    </button>
+                  )}
+                  {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+                    <button
+                      onClick={() => handleUpdateStatus('CANCELLED')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all"
+                    >
+                      Cancel Order
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {order.status !== 'CONFIRMED' && (
-                  <button
-                    onClick={() => handleUpdateStatus('CONFIRMED')}
-                    disabled={updating}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                  >
-                    ✓ Confirm Order
-                  </button>
-                )}
-                {order.status !== 'PREPARING' && order.status !== 'DELIVERED' && (
-                  <button
-                    onClick={() => handleUpdateStatus('PREPARING')}
-                    disabled={updating}
-                    className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                  >
-                    📦 Mark Preparing
-                  </button>
-                )}
-                {order.status !== 'READY_FOR_DISPATCH' && order.status !== 'DELIVERED' && (
-                  <button
-                    onClick={() => handleUpdateStatus('READY_FOR_DISPATCH')}
-                    disabled={updating}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                  >
-                    🏷️ Ready for Dispatch
-                  </button>
-                )}
-                {order.status !== 'DISPATCHED' && order.status !== 'DELIVERED' && (
-                  <button
-                    onClick={() => handleUpdateStatus('DISPATCHED')}
-                    disabled={updating}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                  >
-                    🚚 Mark Dispatched
-                  </button>
-                )}
-                {order.status !== 'OUT_FOR_DELIVERY' && order.status !== 'DELIVERED' && (
-                  <button
-                    onClick={() => handleUpdateStatus('OUT_FOR_DELIVERY')}
-                    disabled={updating}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                  >
-                    📍 Out for Delivery
-                  </button>
-                )}
-                {order.status !== 'DELIVERED' && (
-                  <button
-                    onClick={() => handleUpdateStatus('DELIVERED')}
-                    disabled={updating}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                  >
-                    🎉 Mark Delivered
-                  </button>
-                )}
-                {order.status !== 'ON_HOLD' && order.status !== 'DELIVERED' && (
-                  <button
-                    onClick={() => handleUpdateStatus('ON_HOLD')}
-                    disabled={updating}
-                    className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-all shadow-xs"
-                  >
-                    ⏸️ Put On Hold
-                  </button>
-                )}
-                {order.status !== 'CANCELLED' && (
-                  <button
-                    onClick={() => handleUpdateStatus('CANCELLED')}
-                    disabled={updating}
-                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all"
-                  >
-                    Cancel Order
-                  </button>
-                )}
+
+              {/* Separate Payment Status Selector */}
+              <div className="pt-3 border-t border-[#E6DDDD] flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="font-bold text-[#221D1D] block">Update Payment Status</span>
+                  <span className="text-[11px] text-[#635858]">Current: <strong>{order.paymentStatus}</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {(['PENDING', 'ADVANCE', 'PARTIAL', 'PAID', 'CREDIT', 'REFUNDED'] as const).map(pStatus => (
+                    <button
+                      key={pStatus}
+                      disabled={updating || order.paymentStatus === pStatus}
+                      onClick={async () => {
+                        setUpdating(true);
+                        try {
+                          const res = await fetch(`/api/orders/${order.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              action: 'UPDATE_PAYMENT_STATUS',
+                              paymentStatus: pStatus,
+                            }),
+                          });
+                          if (res.ok) onOrderUpdated();
+                        } catch {}
+                        finally { setUpdating(false); }
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                        order.paymentStatus === pStatus
+                          ? 'bg-[#221D1D] text-white border-[#221D1D]'
+                          : 'bg-white text-[#635858] border-[#C8B5A9] hover:border-[#B7937A]'
+                      }`}
+                    >
+                      {pStatus}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

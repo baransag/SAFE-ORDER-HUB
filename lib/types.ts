@@ -18,6 +18,10 @@ export interface User {
   avatar?: string;
   active: boolean;
   createdAt: string;
+  languagePreference?: string;
+  themePreference?: string;
+  notificationPreferences?: { orders: boolean; deliveries: boolean; approvals: boolean };
+  profileVisibility?: string;
 }
 
 export interface Product {
@@ -213,11 +217,103 @@ export interface SystemSettings {
   updatedAt: string;
 }
 
-export interface AICallbackAction {
-  actionType: 'CREATE_ORDER' | 'UPDATE_STATUS' | 'APPROVE_RATE' | 'CANCEL_ORDER';
-  targetOrderNumber?: string;
-  targetOrderId?: string;
-  targetStatus?: OrderStatus;
-  orderPayload?: any;
-  summary: string;
+export type VoiceOrderStatus = 'PENDING' | 'REVIEWED' | 'CONVERTED' | 'REJECTED';
+
+export interface VoiceOrder {
+  id: string;
+  userId: string;
+  userName: string;
+  audioUrl?: string;
+  durationSeconds: number;
+  transcript: string;
+  extractedCustomerName?: string;
+  extractedCustomerPhone?: string;
+  extractedCity?: string;
+  extractedDeliveryAddress?: string;
+  extractedProducts?: any;
+  extractedRates?: string;
+  extractedNotes?: string;
+  status: VoiceOrderStatus;
+  assignedToId?: string;
+  assignedToName?: string;
+  convertedOrderId?: string;
+  internalNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MessageTemplateCategory = 
+  | 'ORDER_RECEIVED'
+  | 'ORDER_CONFIRMED'
+  | 'ORDER_DISPATCHED'
+  | 'ORDER_DELIVERED'
+  | 'PAYMENT_RECEIVED'
+  | 'REPEAT_CUSTOMER'
+  | 'NEW_CUSTOMER'
+  | 'FEEDBACK_REVIEW'
+  | 'AFTER_SALES'
+  | 'GENERAL';
+
+export interface MessageTemplate {
+  id: string;
+  title: string;
+  category: MessageTemplateCategory;
+  language: 'en' | 'ur';
+  templateText: string;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PushSubscriptionRecord {
+  id: string;
+  userId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  createdAt: string;
+}
+
+export type DocumentType = 'TDS' | 'MSDS' | 'CERTIFICATE' | 'CATALOG' | 'APPLICATION_GUIDE';
+
+export interface TechnicalDocument {
+  id: string;
+  title: string;
+  productName?: string;
+  manufacturer?: string;
+  documentType: DocumentType;
+  category: string;
+  folderPath: string;
+  version: string;
+  fileName: string;
+  filePath: string;
+  fileSizeBytes: number;
+  fileType: string;
+  extractedText?: string;
+  tags: string[];
+  visibility: 'ALL_SALES' | 'MANAGEMENT_ONLY';
+  isArchived: boolean;
+  uploadedBy: string;
+  uploadedByName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CopilotMessage {
+  id: string;
+  conversationId: string;
+  userId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  metadata?: any;
+  createdAt: string;
+}
+
+export interface CopilotConversation {
+  id: string;
+  userId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
 }

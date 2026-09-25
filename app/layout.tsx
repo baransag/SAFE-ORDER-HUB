@@ -1,10 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import SafeCopilotFloating from '@/components/SafeCopilotFloating';
 
 export const metadata: Metadata = {
   title: 'SAFE ORDER HUB — SAFE SOLUTIONS Internal Management',
-  description: 'Internal Sales, Orders, Delivery & Business Intelligence System for SAFE SOLUTIONS',
+  description: 'Internal Sales, Orders, Delivery, Communication & Operations Platform for SAFE SOLUTIONS',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -14,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0D9488',
+  themeColor: '#B7937A',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -27,9 +26,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full">
-      <body className="min-h-full flex flex-col bg-[#F6F8FC] text-[#172033] antialiased selection:bg-teal-100 selection:text-teal-900">
+      <body className="min-h-full flex flex-col bg-[#F8F6F4] text-[#241F1F] antialiased selection:bg-[#BCAEC4]/30 selection:text-[#241F1F]">
         {children}
-        <SafeCopilotFloating />
         <script
           dangerouslySetInnerHTML={{
             __html: `

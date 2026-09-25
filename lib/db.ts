@@ -14,7 +14,16 @@ import {
   DeliveryStatus,
   Urgency,
   AuditLog,
-  DeliveryProof
+  DeliveryProof,
+  VoiceOrder,
+  VoiceOrderStatus,
+  MessageTemplate,
+  MessageTemplateCategory,
+  PushSubscriptionRecord,
+  TechnicalDocument,
+  DocumentType,
+  CopilotMessage,
+  CopilotConversation
 } from './types';
 import { validateOrderStatusTransition } from './order-state-machine';
 
@@ -35,6 +44,109 @@ function mapUser(r: any): User {
     avatar: r.avatar || undefined,
     active: Boolean(r.active),
     createdAt: new Date(r.created_at).toISOString(),
+    languagePreference: r.language_preference || 'en',
+    themePreference: r.theme_preference || 'light',
+    notificationPreferences: typeof r.notification_preferences === 'string'
+      ? JSON.parse(r.notification_preferences)
+      : (r.notification_preferences || { orders: true, deliveries: true, approvals: true }),
+    profileVisibility: r.profile_visibility || 'TEAM',
+  };
+}
+
+function mapVoiceOrder(r: any): VoiceOrder {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    userName: r.user_name,
+    audioUrl: r.audio_url || undefined,
+    durationSeconds: Number(r.duration_seconds || 0),
+    transcript: r.transcript || '',
+    extractedCustomerName: r.extracted_customer_name || undefined,
+    extractedCustomerPhone: r.extracted_customer_phone || undefined,
+    extractedCity: r.extracted_city || undefined,
+    extractedDeliveryAddress: r.extracted_delivery_address || undefined,
+    extractedProducts: typeof r.extracted_products === 'string' ? JSON.parse(r.extracted_products) : (r.extracted_products || null),
+    extractedRates: r.extracted_rates || undefined,
+    extractedNotes: r.extracted_notes || undefined,
+    status: r.status as VoiceOrderStatus,
+    assignedToId: r.assigned_to_id || undefined,
+    assignedToName: r.assigned_to_name || undefined,
+    convertedOrderId: r.converted_order_id || undefined,
+    internalNotes: r.internal_notes || undefined,
+    createdAt: new Date(r.created_at).toISOString(),
+    updatedAt: new Date(r.updated_at).toISOString(),
+  };
+}
+
+function mapTemplate(r: any): MessageTemplate {
+  return {
+    id: r.id,
+    title: r.title,
+    category: r.category as MessageTemplateCategory,
+    language: r.language || 'en',
+    templateText: r.template_text,
+    isDefault: Boolean(r.is_default),
+    isActive: Boolean(r.is_active),
+    createdAt: new Date(r.created_at).toISOString(),
+    updatedAt: new Date(r.updated_at).toISOString(),
+  };
+}
+
+function mapPushSub(r: any): PushSubscriptionRecord {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    endpoint: r.endpoint,
+    p256dh: r.p256dh,
+    auth: r.auth,
+    createdAt: new Date(r.created_at).toISOString(),
+  };
+}
+
+function mapTechnicalDocument(r: any): TechnicalDocument {
+  return {
+    id: r.id,
+    title: r.title,
+    productName: r.product_name || undefined,
+    manufacturer: r.manufacturer || undefined,
+    documentType: (r.document_type || 'TDS') as DocumentType,
+    category: r.category || 'General',
+    folderPath: r.folder_path || '/',
+    version: r.version || '1.0',
+    fileName: r.file_name,
+    filePath: r.file_path,
+    fileSizeBytes: Number(r.file_size_bytes || 0),
+    fileType: r.file_type || 'application/pdf',
+    extractedText: r.extracted_text || undefined,
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    visibility: (r.visibility || 'ALL_SALES') as 'ALL_SALES' | 'MANAGEMENT_ONLY',
+    isArchived: Boolean(r.is_archived),
+    uploadedBy: r.uploaded_by,
+    uploadedByName: r.uploaded_by_name || undefined,
+    createdAt: new Date(r.created_at).toISOString(),
+    updatedAt: new Date(r.updated_at).toISOString(),
+  };
+}
+
+function mapCopilotMessage(r: any): CopilotMessage {
+  return {
+    id: r.id,
+    conversationId: r.conversation_id,
+    userId: r.user_id,
+    role: r.role as 'user' | 'assistant' | 'system',
+    content: r.content,
+    metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : (r.metadata || {}),
+    createdAt: new Date(r.created_at).toISOString(),
+  };
+}
+
+function mapCopilotConversation(r: any): CopilotConversation {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    title: r.title,
+    createdAt: new Date(r.created_at).toISOString(),
+    updatedAt: new Date(r.updated_at).toISOString(),
   };
 }
 
@@ -817,10 +929,10 @@ export const db = {
         const ir = await client.query(itemInsert, [
           itemId,
           newId,
-          item.productId,
+          item.productId || null,
           item.productName,
-          item.packing,
-          item.unit,
+          item.packing || 'Standard',
+          item.unit || 'Unit',
           item.quantity,
           item.standardRate,
           item.offeredRate,
@@ -1137,6 +1249,42 @@ export const db = {
     });
   },
 
+  updateOrderPaymentStatus: async (
+    orderId: string,
+    newPaymentStatus: PaymentStatus,
+    actor: { id: string; name: string; role: Role },
+    paymentRemarks?: string
+  ): Promise<Order | null> => {
+    assertPostgresConfigured();
+    return await withTransaction(async (client) => {
+      const now = new Date().toISOString();
+      const rows = await client.query(`
+        UPDATE orders 
+        SET payment_status = $1, payment_remarks = COALESCE($2, payment_remarks), updated_at = $3
+        WHERE id = $4 OR order_number = $4
+        RETURNING *
+      `, [newPaymentStatus, paymentRemarks || null, now, orderId]);
+
+      if (rows.rows.length === 0) return null;
+      const updated = rows.rows[0];
+
+      await client.query(`
+        INSERT INTO audit_logs (id, user_id, user_name, user_role, action, entity, entity_id, new_value, timestamp)
+        VALUES ($1, $2, $3, $4, 'PAYMENT_STATUS_CHANGED', 'ORDER', $5, $6, $7)
+      `, [
+        `aud_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        actor.id,
+        actor.name,
+        actor.role,
+        updated.id,
+        `Payment status updated to ${newPaymentStatus} by ${actor.name}`,
+        now,
+      ]);
+
+      return await db.getOrderById(updated.id);
+    });
+  },
+
   // ──────────────────────────────────────────────
   // DELIVERIES & PROOFS
   // ──────────────────────────────────────────────
@@ -1339,6 +1487,10 @@ export const db = {
     return mapAuditLog(rows[0]);
   },
 
+  createAuditLog: async (entry: Omit<AuditLog, 'id' | 'timestamp'>): Promise<AuditLog> => {
+    return db.addAuditLog(entry);
+  },
+
   getAuditLogs: async (params?: { entity?: string; userId?: string; limit?: number }): Promise<AuditLog[]> => {
     assertPostgresConfigured();
     let q = `SELECT * FROM audit_logs WHERE 1=1`;
@@ -1454,7 +1606,7 @@ export const db = {
     let idx = 1;
 
     if (role) {
-      q += ` AND ($${idx++} = ANY(recipient_roles) OR user_id = $${idx++})`;
+      q += ` AND ($${idx++}::text = ANY(recipient_roles) OR user_id = $${idx++}::text)`;
       params.push(role, userId || '');
     }
 
@@ -1474,10 +1626,548 @@ export const db = {
     let q = 'UPDATE notifications SET read = TRUE WHERE read = FALSE';
     const params: any[] = [];
     if (role) {
-      q += ` AND ($1 = ANY(recipient_roles) OR user_id = $2)`;
+      q += ` AND ($1::text = ANY(recipient_roles) OR user_id = $2::text)`;
       params.push(role, userId || '');
     }
     await queryPostgres(q, params);
     return true;
   },
+
+  createNotification: async (entry: {
+    title: string;
+    message: string;
+    orderId?: string;
+    orderNumber?: string;
+    type: 'NEW_ORDER' | 'RATE_REVIEW' | 'STATUS_CHANGE' | 'APPROVAL' | 'DELIVERY';
+    recipientRoles?: Role[];
+    userId?: string;
+  }): Promise<Notification> => {
+    assertPostgresConfigured();
+    const id = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date().toISOString();
+    const q = `
+      INSERT INTO notifications (id, title, message, order_id, order_number, type, read, recipient_roles, user_id, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE, $7, $8, $9)
+      RETURNING *
+    `;
+    const rows = await queryPostgres(q, [
+      id,
+      entry.title,
+      entry.message,
+      entry.orderId || null,
+      entry.orderNumber || null,
+      entry.type,
+      entry.recipientRoles || null,
+      entry.userId || null,
+      now,
+    ]);
+    return mapNotification(rows[0]);
+  },
+
+  // ──────────────────────────────────────────────
+  // USER PROFILE
+  // ──────────────────────────────────────────────
+  updateUserProfile: async (
+    userId: string,
+    updates: {
+      name?: string;
+      phone?: string;
+      avatar?: string;
+      designation?: string;
+      passwordHash?: string;
+      languagePreference?: string;
+      themePreference?: string;
+      notificationPreferences?: any;
+      profileVisibility?: string;
+    }
+  ): Promise<User | null> => {
+    assertPostgresConfigured();
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.name !== undefined) { fields.push(`name = $${idx++}`); values.push(updates.name); }
+    if (updates.phone !== undefined) { fields.push(`phone = $${idx++}`); values.push(updates.phone); }
+    if (updates.avatar !== undefined) { fields.push(`avatar = $${idx++}`); values.push(updates.avatar); }
+    if (updates.designation !== undefined) { fields.push(`designation = $${idx++}`); values.push(updates.designation); }
+    if (updates.passwordHash !== undefined) { fields.push(`password_hash = $${idx++}`); values.push(updates.passwordHash); }
+    if (updates.languagePreference !== undefined) { fields.push(`language_preference = $${idx++}`); values.push(updates.languagePreference); }
+    if (updates.themePreference !== undefined) { fields.push(`theme_preference = $${idx++}`); values.push(updates.themePreference); }
+    if (updates.notificationPreferences !== undefined) { fields.push(`notification_preferences = $${idx++}`); values.push(JSON.stringify(updates.notificationPreferences)); }
+    if (updates.profileVisibility !== undefined) { fields.push(`profile_visibility = $${idx++}`); values.push(updates.profileVisibility); }
+
+    fields.push(`updated_at = $${idx++}`);
+    values.push(new Date().toISOString());
+
+    values.push(userId);
+    const q = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const rows = await queryPostgres(q, values);
+    return rows.length > 0 ? mapUser(rows[0]) : null;
+  },
+
+  // ──────────────────────────────────────────────
+  // VOICE ORDERS
+  // ──────────────────────────────────────────────
+  getVoiceOrders: async (params?: { role?: Role; userId?: string; status?: VoiceOrderStatus }): Promise<VoiceOrder[]> => {
+    assertPostgresConfigured();
+    let q = 'SELECT * FROM voice_orders WHERE 1=1';
+    const queryParams: any[] = [];
+    let idx = 1;
+
+    const isSales = params?.role && !['BOSS', 'CONTROLLER', 'MANAGER'].includes(params.role);
+    if (isSales && params?.userId) {
+      q += ` AND (user_id = $${idx++} OR assigned_to_id = $${idx++})`;
+      queryParams.push(params.userId, params.userId);
+    }
+
+    if (params?.status) {
+      q += ` AND status = $${idx++}`;
+      queryParams.push(params.status);
+    }
+
+    q += ' ORDER BY created_at DESC LIMIT 100';
+    const rows = await queryPostgres(q, queryParams);
+    return rows.map(mapVoiceOrder);
+  },
+
+  getVoiceOrderById: async (id: string): Promise<VoiceOrder | null> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('SELECT * FROM voice_orders WHERE id = $1', [id]);
+    return rows.length > 0 ? mapVoiceOrder(rows[0]) : null;
+  },
+
+  createVoiceOrder: async (data: {
+    userId: string;
+    userName: string;
+    audioUrl?: string;
+    durationSeconds?: number;
+    transcript: string;
+    extractedCustomerName?: string;
+    extractedCustomerPhone?: string;
+    extractedCity?: string;
+    extractedDeliveryAddress?: string;
+    extractedProducts?: any;
+    extractedRates?: string;
+    extractedNotes?: string;
+    assignedToId?: string;
+    assignedToName?: string;
+  }): Promise<VoiceOrder> => {
+    assertPostgresConfigured();
+    const id = `vo_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date().toISOString();
+
+    const q = `
+      INSERT INTO voice_orders (
+        id, user_id, user_name, audio_url, duration_seconds, transcript,
+        extracted_customer_name, extracted_customer_phone, extracted_city, extracted_delivery_address,
+        extracted_products, extracted_rates, extracted_notes, status,
+        assigned_to_id, assigned_to_name, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'PENDING', $14, $15, $16, $17)
+      RETURNING *
+    `;
+
+    const rows = await queryPostgres(q, [
+      id,
+      data.userId,
+      data.userName,
+      data.audioUrl || null,
+      data.durationSeconds || 0,
+      data.transcript,
+      data.extractedCustomerName || null,
+      data.extractedCustomerPhone || null,
+      data.extractedCity || null,
+      data.extractedDeliveryAddress || null,
+      data.extractedProducts ? JSON.stringify(data.extractedProducts) : null,
+      data.extractedRates || null,
+      data.extractedNotes || null,
+      data.assignedToId || null,
+      data.assignedToName || null,
+      now,
+      now,
+    ]);
+
+    await db.createNotification({
+      title: '🎙️ New Voice Order Submitted',
+      message: `${data.userName} recorded a voice order for ${data.extractedCustomerName || 'unnamed client'} (${data.extractedCity || 'site'}).`,
+      type: 'NEW_ORDER',
+      recipientRoles: ['BOSS', 'CONTROLLER', 'MANAGER'],
+    });
+
+    return mapVoiceOrder(rows[0]);
+  },
+
+  updateVoiceOrder: async (
+    id: string,
+    updates: Partial<VoiceOrder>
+  ): Promise<VoiceOrder | null> => {
+    assertPostgresConfigured();
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.transcript !== undefined) { fields.push(`transcript = $${idx++}`); values.push(updates.transcript); }
+    if (updates.extractedCustomerName !== undefined) { fields.push(`extracted_customer_name = $${idx++}`); values.push(updates.extractedCustomerName); }
+    if (updates.extractedCustomerPhone !== undefined) { fields.push(`extracted_customer_phone = $${idx++}`); values.push(updates.extractedCustomerPhone); }
+    if (updates.extractedCity !== undefined) { fields.push(`extracted_city = $${idx++}`); values.push(updates.extractedCity); }
+    if (updates.extractedDeliveryAddress !== undefined) { fields.push(`extracted_delivery_address = $${idx++}`); values.push(updates.extractedDeliveryAddress); }
+    if (updates.extractedProducts !== undefined) { fields.push(`extracted_products = $${idx++}`); values.push(JSON.stringify(updates.extractedProducts)); }
+    if (updates.extractedRates !== undefined) { fields.push(`extracted_rates = $${idx++}`); values.push(updates.extractedRates); }
+    if (updates.extractedNotes !== undefined) { fields.push(`extracted_notes = $${idx++}`); values.push(updates.extractedNotes); }
+    if (updates.status !== undefined) { fields.push(`status = $${idx++}`); values.push(updates.status); }
+    if (updates.assignedToId !== undefined) { fields.push(`assigned_to_id = $${idx++}`); values.push(updates.assignedToId); }
+    if (updates.assignedToName !== undefined) { fields.push(`assigned_to_name = $${idx++}`); values.push(updates.assignedToName); }
+    if (updates.convertedOrderId !== undefined) { fields.push(`converted_order_id = $${idx++}`); values.push(updates.convertedOrderId); }
+    if (updates.internalNotes !== undefined) { fields.push(`internal_notes = $${idx++}`); values.push(updates.internalNotes); }
+
+    fields.push(`updated_at = $${idx++}`);
+    values.push(new Date().toISOString());
+
+    values.push(id);
+    const q = `UPDATE voice_orders SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const rows = await queryPostgres(q, values);
+    return rows.length > 0 ? mapVoiceOrder(rows[0]) : null;
+  },
+
+  deleteVoiceOrder: async (id: string): Promise<boolean> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('DELETE FROM voice_orders WHERE id = $1 RETURNING id', [id]);
+    return rows.length > 0;
+  },
+
+  // ──────────────────────────────────────────────
+  // MESSAGE TEMPLATES
+  // ──────────────────────────────────────────────
+  getMessageTemplates: async (params?: { category?: string; language?: string; activeOnly?: boolean }): Promise<MessageTemplate[]> => {
+    assertPostgresConfigured();
+    let q = 'SELECT * FROM message_templates WHERE 1=1';
+    const queryParams: any[] = [];
+    let idx = 1;
+
+    if (params?.activeOnly !== false) {
+      q += ` AND is_active = TRUE`;
+    }
+    if (params?.category && params.category !== 'ALL') {
+      q += ` AND category = $${idx++}`;
+      queryParams.push(params.category);
+    }
+    if (params?.language && params.language !== 'ALL') {
+      q += ` AND language = $${idx++}`;
+      queryParams.push(params.language);
+    }
+
+    q += ' ORDER BY is_default DESC, category ASC, title ASC';
+    const rows = await queryPostgres(q, queryParams);
+    return rows.map(mapTemplate);
+  },
+
+  getMessageTemplateById: async (id: string): Promise<MessageTemplate | null> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('SELECT * FROM message_templates WHERE id = $1', [id]);
+    return rows.length > 0 ? mapTemplate(rows[0]) : null;
+  },
+
+  createMessageTemplate: async (data: {
+    title: string;
+    category: MessageTemplateCategory;
+    language?: 'en' | 'ur';
+    templateText: string;
+    isDefault?: boolean;
+  }): Promise<MessageTemplate> => {
+    assertPostgresConfigured();
+    const id = `tmpl_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const now = new Date().toISOString();
+
+    const q = `
+      INSERT INTO message_templates (id, title, category, language, template_text, is_default, is_active, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)
+      RETURNING *
+    `;
+    const rows = await queryPostgres(q, [
+      id,
+      data.title,
+      data.category,
+      data.language || 'en',
+      data.templateText,
+      Boolean(data.isDefault),
+      now,
+      now,
+    ]);
+    return mapTemplate(rows[0]);
+  },
+
+  updateMessageTemplate: async (
+    id: string,
+    updates: Partial<MessageTemplate>
+  ): Promise<MessageTemplate | null> => {
+    assertPostgresConfigured();
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.title !== undefined) { fields.push(`title = $${idx++}`); values.push(updates.title); }
+    if (updates.category !== undefined) { fields.push(`category = $${idx++}`); values.push(updates.category); }
+    if (updates.language !== undefined) { fields.push(`language = $${idx++}`); values.push(updates.language); }
+    if (updates.templateText !== undefined) { fields.push(`template_text = $${idx++}`); values.push(updates.templateText); }
+    if (updates.isDefault !== undefined) { fields.push(`is_default = $${idx++}`); values.push(updates.isDefault); }
+    if (updates.isActive !== undefined) { fields.push(`is_active = $${idx++}`); values.push(updates.isActive); }
+
+    fields.push(`updated_at = $${idx++}`);
+    values.push(new Date().toISOString());
+
+    values.push(id);
+    const q = `UPDATE message_templates SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const rows = await queryPostgres(q, values);
+    return rows.length > 0 ? mapTemplate(rows[0]) : null;
+  },
+
+  deleteMessageTemplate: async (id: string): Promise<boolean> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('DELETE FROM message_templates WHERE id = $1 RETURNING id', [id]);
+    return rows.length > 0;
+  },
+
+  // ──────────────────────────────────────────────
+  // PUSH SUBSCRIPTIONS
+  // ──────────────────────────────────────────────
+  savePushSubscription: async (userId: string, subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) => {
+    assertPostgresConfigured();
+    const id = `push_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const q = `
+      INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at)
+      VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+      ON CONFLICT (endpoint) DO UPDATE SET
+        user_id = EXCLUDED.user_id,
+        p256dh = EXCLUDED.p256dh,
+        auth = EXCLUDED.auth
+      RETURNING *
+    `;
+    const rows = await queryPostgres(q, [id, userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]);
+    return rows.length > 0 ? mapPushSub(rows[0]) : null;
+  },
+
+  getPushSubscriptions: async (userIds?: string[]): Promise<PushSubscriptionRecord[]> => {
+    assertPostgresConfigured();
+    if (userIds && userIds.length > 0) {
+      const rows = await queryPostgres('SELECT * FROM push_subscriptions WHERE user_id = ANY($1)', [userIds]);
+      return rows.map(mapPushSub);
+    }
+    const rows = await queryPostgres('SELECT * FROM push_subscriptions');
+    return rows.map(mapPushSub);
+  },
+
+  deletePushSubscription: async (endpoint: string): Promise<boolean> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('DELETE FROM push_subscriptions WHERE endpoint = $1 RETURNING id', [endpoint]);
+    return rows.length > 0;
+  },
+
+  // ──────────────────────────────────────────────
+  // TECHNICAL DOCUMENTS & LIBRARY
+  // ──────────────────────────────────────────────
+  getTechnicalDocuments: async (options?: {
+    category?: string;
+    folderPath?: string;
+    search?: string;
+    productName?: string;
+    visibility?: string;
+    isManagement?: boolean;
+    includeArchived?: boolean;
+  }): Promise<TechnicalDocument[]> => {
+    assertPostgresConfigured();
+    let q = 'SELECT * FROM technical_documents WHERE 1=1';
+    const params: any[] = [];
+    let idx = 1;
+
+    if (!options?.includeArchived) {
+      q += ' AND is_archived = FALSE';
+    }
+
+    if (!options?.isManagement) {
+      q += " AND visibility = 'ALL_SALES'";
+    }
+
+    if (options?.category && options.category !== 'ALL') {
+      q += ` AND category = $${idx++}`;
+      params.push(options.category);
+    }
+
+    if (options?.folderPath && options.folderPath !== 'ALL') {
+      q += ` AND folder_path = $${idx++}`;
+      params.push(options.folderPath);
+    }
+
+    if (options?.productName) {
+      q += ` AND LOWER(product_name) = LOWER($${idx++})`;
+      params.push(options.productName);
+    }
+
+    if (options?.search && options.search.trim()) {
+      const term = `%${options.search.trim().toLowerCase()}%`;
+      q += ` AND (LOWER(title) LIKE $${idx} OR LOWER(product_name) LIKE $${idx} OR LOWER(COALESCE(extracted_text, '')) LIKE $${idx} OR $${idx + 1} = ANY(tags))`;
+      params.push(term, options.search.trim());
+      idx += 2;
+    }
+
+    q += ' ORDER BY created_at DESC';
+    const rows = await queryPostgres(q, params);
+    return rows.map(mapTechnicalDocument);
+  },
+
+  getTechnicalDocumentById: async (id: string): Promise<TechnicalDocument | null> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('SELECT * FROM technical_documents WHERE id = $1', [id]);
+    return rows.length > 0 ? mapTechnicalDocument(rows[0]) : null;
+  },
+
+  createTechnicalDocument: async (data: {
+    title: string;
+    productName?: string;
+    manufacturer?: string;
+    documentType?: DocumentType;
+    category?: string;
+    folderPath?: string;
+    version?: string;
+    fileName: string;
+    filePath: string;
+    fileSizeBytes?: number;
+    fileType?: string;
+    extractedText?: string;
+    tags?: string[];
+    visibility?: 'ALL_SALES' | 'MANAGEMENT_ONLY';
+    uploadedBy: string;
+    uploadedByName?: string;
+  }): Promise<TechnicalDocument> => {
+    assertPostgresConfigured();
+    const id = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date().toISOString();
+
+    const q = `
+      INSERT INTO technical_documents (
+        id, title, product_name, manufacturer, document_type, category,
+        folder_path, version, file_name, file_path, file_size_bytes,
+        file_type, extracted_text, tags, visibility, is_archived,
+        uploaded_by, uploaded_by_name, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, FALSE, $16, $17, $18, $19)
+      RETURNING *
+    `;
+
+    const rows = await queryPostgres(q, [
+      id,
+      data.title,
+      data.productName || null,
+      data.manufacturer || 'Radiant Construction Technologies LLP',
+      data.documentType || 'TDS',
+      data.category || 'General',
+      data.folderPath || '/',
+      data.version || '1.0',
+      data.fileName,
+      data.filePath,
+      data.fileSizeBytes || 0,
+      data.fileType || 'application/pdf',
+      data.extractedText || null,
+      data.tags || [],
+      data.visibility || 'ALL_SALES',
+      data.uploadedBy,
+      data.uploadedByName || null,
+      now,
+      now,
+    ]);
+
+    return mapTechnicalDocument(rows[0]);
+  },
+
+  updateTechnicalDocument: async (
+    id: string,
+    updates: Partial<TechnicalDocument>
+  ): Promise<TechnicalDocument | null> => {
+    assertPostgresConfigured();
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.title !== undefined) { fields.push(`title = $${idx++}`); values.push(updates.title); }
+    if (updates.productName !== undefined) { fields.push(`product_name = $${idx++}`); values.push(updates.productName); }
+    if (updates.manufacturer !== undefined) { fields.push(`manufacturer = $${idx++}`); values.push(updates.manufacturer); }
+    if (updates.documentType !== undefined) { fields.push(`document_type = $${idx++}`); values.push(updates.documentType); }
+    if (updates.category !== undefined) { fields.push(`category = $${idx++}`); values.push(updates.category); }
+    if (updates.folderPath !== undefined) { fields.push(`folder_path = $${idx++}`); values.push(updates.folderPath); }
+    if (updates.version !== undefined) { fields.push(`version = $${idx++}`); values.push(updates.version); }
+    if (updates.extractedText !== undefined) { fields.push(`extracted_text = $${idx++}`); values.push(updates.extractedText); }
+    if (updates.tags !== undefined) { fields.push(`tags = $${idx++}`); values.push(updates.tags); }
+    if (updates.visibility !== undefined) { fields.push(`visibility = $${idx++}`); values.push(updates.visibility); }
+    if (updates.isArchived !== undefined) { fields.push(`is_archived = $${idx++}`); values.push(updates.isArchived); }
+
+    fields.push(`updated_at = $${idx++}`);
+    values.push(new Date().toISOString());
+
+    values.push(id);
+    const q = `UPDATE technical_documents SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const rows = await queryPostgres(q, values);
+    return rows.length > 0 ? mapTechnicalDocument(rows[0]) : null;
+  },
+
+  deleteTechnicalDocument: async (id: string): Promise<boolean> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('DELETE FROM technical_documents WHERE id = $1 RETURNING id', [id]);
+    return rows.length > 0;
+  },
+
+  // ──────────────────────────────────────────────
+  // COPILOT CONVERSATIONS & MESSAGES
+  // ──────────────────────────────────────────────
+  getCopilotMessages: async (conversationId: string): Promise<CopilotMessage[]> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres(
+      'SELECT * FROM copilot_messages WHERE conversation_id = $1 ORDER BY created_at ASC',
+      [conversationId]
+    );
+    return rows.map(mapCopilotMessage);
+  },
+
+  saveCopilotMessage: async (data: {
+    conversationId: string;
+    userId: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    metadata?: any;
+  }): Promise<CopilotMessage> => {
+    assertPostgresConfigured();
+    const id = `cmsg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const q = `
+      INSERT INTO copilot_messages (id, conversation_id, user_id, role, content, metadata, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+      RETURNING *
+    `;
+    const rows = await queryPostgres(q, [
+      id,
+      data.conversationId,
+      data.userId,
+      data.role,
+      data.content,
+      data.metadata ? JSON.stringify(data.metadata) : '{}'
+    ]);
+    return mapCopilotMessage(rows[0]);
+  },
+
+  createCopilotConversation: async (userId: string, title = 'New Chat'): Promise<CopilotConversation> => {
+    assertPostgresConfigured();
+    const id = `cconv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const q = `
+      INSERT INTO copilot_conversations (id, user_id, title, created_at, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING *
+    `;
+    const rows = await queryPostgres(q, [id, userId, title]);
+    return mapCopilotConversation(rows[0]);
+  },
+
+  getUserCopilotConversations: async (userId: string): Promise<CopilotConversation[]> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres(
+      'SELECT * FROM copilot_conversations WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 20',
+      [userId]
+    );
+    return rows.map(mapCopilotConversation);
+  },
 };
+

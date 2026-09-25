@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS language_preference VARCHAR(16) DEFAULT 'en';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_preference VARCHAR(16) DEFAULT 'light';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT '{"orders": true, "deliveries": true, "approvals": true}'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_visibility VARCHAR(32) DEFAULT 'TEAM';
+
 -- 2. CUSTOMERS TABLE
 CREATE TABLE IF NOT EXISTS customers (
   id VARCHAR(64) PRIMARY KEY,
@@ -210,26 +215,58 @@ CREATE TABLE IF NOT EXISTS system_settings (
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 11. AI CONVERSATIONS & USAGE
-CREATE TABLE IF NOT EXISTS ai_conversations (
+-- 11. VOICE ORDERS TABLE
+CREATE TABLE IF NOT EXISTS voice_orders (
   id VARCHAR(64) PRIMARY KEY,
   user_id VARCHAR(64) NOT NULL REFERENCES users(id),
   user_name VARCHAR(128) NOT NULL,
-  user_role VARCHAR(32) NOT NULL,
-  message_count INT DEFAULT 0,
-  last_query TEXT,
+  audio_url TEXT,
+  duration_seconds INT DEFAULT 0,
+  transcript TEXT NOT NULL,
+  extracted_customer_name VARCHAR(128),
+  extracted_customer_phone VARCHAR(32),
+  extracted_city VARCHAR(64),
+  extracted_delivery_address TEXT,
+  extracted_products JSONB,
+  extracted_rates TEXT,
+  extracted_notes TEXT,
+  status VARCHAR(32) DEFAULT 'PENDING', -- 'PENDING', 'REVIEWED', 'CONVERTED', 'REJECTED'
+  assigned_to_id VARCHAR(64) REFERENCES users(id),
+  assigned_to_name VARCHAR(128),
+  converted_order_id VARCHAR(64) REFERENCES orders(id),
+  internal_notes TEXT,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS ai_messages (
+CREATE INDEX IF NOT EXISTS idx_voice_orders_user ON voice_orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_voice_orders_status ON voice_orders(status);
+CREATE INDEX IF NOT EXISTS idx_voice_orders_created ON voice_orders(created_at);
+
+-- 12. MESSAGE TEMPLATES TABLE
+CREATE TABLE IF NOT EXISTS message_templates (
   id VARCHAR(64) PRIMARY KEY,
-  conversation_id VARCHAR(64) NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
-  sender VARCHAR(16) NOT NULL, -- 'user' or 'ai'
-  message_text TEXT NOT NULL,
-  action_type VARCHAR(64),
-  requires_confirmation BOOLEAN DEFAULT FALSE,
-  confirmation_action TEXT,
-  confirmed_at TIMESTAMPTZ,
-  timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  title VARCHAR(128) NOT NULL,
+  category VARCHAR(64) NOT NULL, -- 'ORDER_RECEIVED', 'ORDER_CONFIRMED', 'ORDER_DISPATCHED', 'ORDER_DELIVERED', 'PAYMENT_RECEIVED', 'REPEAT_CUSTOMER', 'NEW_CUSTOMER', 'FEEDBACK_REVIEW', 'AFTER_SALES', 'GENERAL'
+  language VARCHAR(16) DEFAULT 'en', -- 'en', 'ur'
+  template_text TEXT NOT NULL,
+  is_default BOOLEAN DEFAULT FALSE,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_templates_category ON message_templates(category);
+CREATE INDEX IF NOT EXISTS idx_templates_active ON message_templates(is_active);
+
+-- 13. PUSH SUBSCRIPTIONS TABLE
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id VARCHAR(64) PRIMARY KEY,
+  user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id);

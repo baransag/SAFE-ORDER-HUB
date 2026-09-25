@@ -22,6 +22,7 @@ import Navbar from '@/components/Navbar';
 import MobileNav from '@/components/MobileNav';
 import OrderStatusBadge from '@/components/OrderStatusBadge';
 import OrderDetailsDrawer from '@/components/OrderDetailsDrawer';
+import SafeCopilot from '@/components/SafeCopilot';
 import { Order, OrderStatus, User } from '@/lib/types';
 
 function OrdersContent() {
@@ -459,6 +460,9 @@ function OrdersContent() {
       />
 
       <MobileNav />
+
+      {/* Floating Safe Copilot Assistant */}
+      <SafeCopilot currentUser={currentUser} orderContext={selectedOrder} />
     </div>
   );
 }

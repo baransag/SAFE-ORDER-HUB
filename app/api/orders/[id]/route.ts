@@ -96,6 +96,40 @@ export async function PATCH(
       return NextResponse.json({ success: true, order: updated });
     }
 
+    if (action === 'UPDATE_PAYMENT_STATUS') {
+      if (!fullAccess) {
+        return NextResponse.json({ error: 'Only Management (Boss, Controller, Manager) can update payment status' }, { status: 403 });
+      }
+
+      const { paymentStatus, paymentRemarks } = body;
+      if (!paymentStatus) {
+        return NextResponse.json({ error: 'paymentStatus is required' }, { status: 400 });
+      }
+
+      const updated = await db.updateOrderPaymentStatus(order.id, paymentStatus, {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+      }, paymentRemarks);
+
+      return NextResponse.json({ success: true, order: updated });
+    }
+
+    if (action === 'UPDATE_DELIVERY_PROOF') {
+      if (!fullAccess) {
+        return NextResponse.json({ error: 'Only Management (Boss, Controller, Manager) can record delivery proofs' }, { status: 403 });
+      }
+
+      const updatedDelivery = await db.updateDeliveryProof(order.id, body.deliveryProof || {}, {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+      });
+
+      const updatedOrder = await db.getOrderById(order.id);
+      return NextResponse.json({ success: true, order: updatedOrder, delivery: updatedDelivery });
+    }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
     console.error('Error updating order:', error);

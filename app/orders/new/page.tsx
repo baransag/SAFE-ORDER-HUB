@@ -40,6 +40,7 @@ interface OrderItemForm {
   minAllowedRate: number;
   offeredRate: number;
   isSpecialRate: boolean;
+  remarks?: string;
 }
 
 const DRAFT_KEY = 'safe_order_draft_v1';
@@ -890,32 +891,70 @@ export default function NewOrderPage() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                      {/* Product Selector */}
-                      <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Product Name *
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                      {/* Product Name — Free-text with optional catalog selector */}
+                      <div className="sm:col-span-5">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-semibold text-slate-700">
+                            Product Name *
+                          </label>
+                          {products.length > 0 && (
+                            <select
+                              onChange={(e) => {
+                                if (e.target.value) handleProductSelect(idx, e.target.value);
+                              }}
+                              value=""
+                              className="text-[10px] text-slate-500 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md px-1.5 py-0.5"
+                            >
+                              <option value="">Catalog Autofill</option>
+                              {products.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Tiger Shell Black, PU Sealant"
+                          value={item.productName}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setItems(prev => {
+                              const copy = [...prev];
+                              copy[idx] = { ...copy[idx], productName: val };
+                              return copy;
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#AF9292]/30 focus:border-[#AF9292]"
+                        />
+                      </div>
+
+                      {/* Packing / Unit — Free-text */}
+                      <div className="sm:col-span-3">
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Packing / Unit
                         </label>
-                        <select
-                          value={item.productId}
-                          onChange={(e) => handleProductSelect(idx, e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none"
-                        >
-                          {products.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} — Std Rs. {p.standardRate.toLocaleString()} / {p.unit}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-[10px] text-slate-400 mt-1 block">
-                          Packing: {item.packing || 'Standard'} ({item.unit})
-                        </span>
+                        <input
+                          type="text"
+                          placeholder="e.g. 15 Kgs, 600 ml, Bag"
+                          value={item.packing}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setItems(prev => {
+                              const copy = [...prev];
+                              copy[idx] = { ...copy[idx], packing: val, unit: val || 'Unit' };
+                              return copy;
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#AF9292]/30 focus:border-[#AF9292]"
+                        />
                       </div>
 
                       {/* Quantity */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Quantity ({item.unit}) *
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Quantity *
                         </label>
                         <input
                           type="number"
@@ -923,28 +962,42 @@ export default function NewOrderPage() {
                           required
                           value={item.quantity}
                           onChange={(e) => handleQuantityChange(idx, Number(e.target.value))}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#AF9292]/30 focus:border-[#AF9292]"
                         />
                       </div>
 
                       {/* Offered Rate */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Rate / {item.unit} (Rs.) *
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Rate (Rs.) *
                         </label>
                         <input
                           type="number"
-                          min="1"
+                          min="0"
                           required
-                          value={item.offeredRate}
+                          value={item.offeredRate || ''}
                           onChange={(e) => handleRateChange(idx, Number(e.target.value))}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#AF9292]/30 focus:border-[#AF9292]"
+                          placeholder="0"
                         />
-                        {item.minAllowedRate > 0 && (
-                          <span className="text-[10px] text-slate-400 mt-1 block">
-                            Min allowed: Rs. {item.minAllowedRate}
-                          </span>
-                        )}
+                      </div>
+
+                      {/* Item Remarks */}
+                      <div className="sm:col-span-12">
+                        <input
+                          type="text"
+                          placeholder="Product / delivery remarks for this item (optional, e.g. white shade, urgent delivery)..."
+                          value={item.remarks || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setItems(prev => {
+                              const copy = [...prev];
+                              copy[idx] = { ...copy[idx], remarks: val };
+                              return copy;
+                            });
+                          }}
+                          className="w-full px-3 py-1.5 bg-white/70 border border-slate-200 rounded-xl text-[11px] text-slate-600 focus:outline-none"
+                        />
                       </div>
                     </div>
 
