@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   MapPin, 
@@ -18,11 +18,18 @@ import {
   Calendar,
   CreditCard,
   ExternalLink,
-  Share2
+  Share2,
+  FileEdit,
+  Check,
+  Ban,
+  Receipt,
+  FileCheck
 } from 'lucide-react';
-import { Order, OrderStatus, Role, User } from '@/lib/types';
+import { Order, OrderStatus, Role, User, OrderCorrectionRequest, ProductDocumentLink } from '@/lib/types';
 import OrderStatusBadge from './OrderStatusBadge';
 import ThankYouModal from './ThankYouModal';
+import OrderCorrectionModal from './OrderCorrectionModal';
+import Link from 'next/link';
 
 interface Props {
   order: Order | null;
@@ -44,15 +51,44 @@ export default function OrderDetailsDrawer({
   const [updating, setUpdating] = useState(false);
   const [showRateEdit, setShowRateEdit] = useState(false);
   const [showThankYouModal, setShowThankYouModal] = useState(false);
+  const [showCorrectionModal, setShowCorrectionModal] = useState(false);
   const [editRates, setEditRates] = useState<{ [id: string]: number }>({});
   const [reviewNote, setReviewNote] = useState('');
   const [statusNote, setStatusNote] = useState('');
   const [copied, setCopied] = useState(false);
 
+  // Senior Features: Corrections & Linked Technical Documents
+  const [corrections, setCorrections] = useState<OrderCorrectionRequest[]>([]);
+  const [productLinks, setProductLinks] = useState<{ [name: string]: ProductDocumentLink }>({});
+  const [reviewingCorrectionId, setReviewingCorrectionId] = useState<string | null>(null);
+  const [correctionReviewNote, setCorrectionReviewNote] = useState('');
+
+  useEffect(() => {
+    if (isOpen && order) {
+      // Fetch corrections for this order
+      fetch(`/api/orders/corrections?orderId=${order.id}`)
+        .then(r => r.ok ? r.json() : { requests: [] })
+        .then(d => setCorrections(d.requests || []))
+        .catch(() => {});
+
+      // Fetch technical document links
+      fetch('/api/documents/links')
+        .then(r => r.ok ? r.json() : { links: [] })
+        .then(d => {
+          const mapping: { [name: string]: ProductDocumentLink } = {};
+          (d.links || []).forEach((l: ProductDocumentLink) => {
+            mapping[l.productName.trim().toLowerCase()] = l;
+          });
+          setProductLinks(mapping);
+        })
+        .catch(() => {});
+    }
+  }, [isOpen, order]);
+
   if (!isOpen || !order) return null;
 
   const effectiveRole = currentUser?.role || currentUserRole;
-  const isFullAccess = effectiveRole && ['BOSS', 'CONTROLLER', 'MANAGER'].includes(effectiveRole);
+  const isFullAccess = effectiveRole && ['BOSS', 'CONTROLLER', 'MANAGER', 'MANAGEMENT', 'ADMIN'].includes(effectiveRole);
 
   const handleUpdateStatus = async (newStatus: OrderStatus) => {
     setUpdating(true);
@@ -107,6 +143,35 @@ export default function OrderDetailsDrawer({
     }
   };
 
+  const handleReviewCorrection = async (requestId: string, status: 'APPROVED' | 'REJECTED') => {
+    setUpdating(true);
+    try {
+      const res = await fetch('/api/orders/corrections', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId,
+          status,
+          reviewNotes: correctionReviewNote || (status === 'APPROVED' ? 'Correction approved' : 'Correction rejected'),
+        }),
+      });
+
+      if (res.ok) {
+        setReviewingCorrectionId(null);
+        setCorrectionReviewNote('');
+        onOrderUpdated();
+        // Refresh corrections
+        fetch(`/api/orders/corrections?orderId=${order.id}`)
+          .then(r => r.json())
+          .then(d => setCorrections(d.requests || []));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const handlePostToGroup = () => {
     fetch(`/api/orders/${order.id}`)
       .then(r => r.json())
@@ -129,6 +194,8 @@ export default function OrderDetailsDrawer({
         }
       });
   };
+
+  const pendingCorrections = corrections.filter(c => c.status === 'PENDING');
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
@@ -164,14 +231,24 @@ export default function OrderDetailsDrawer({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Request Correction CTA for Sales / Any Staff */}
+            <button
+              onClick={() => setShowCorrectionModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all shadow-xs"
+              title="Request formal correction to this order"
+            >
+              <FileEdit className="w-3.5 h-3.5 text-purple-600" />
+              <span className="hidden sm:inline">Request Correction</span>
+            </button>
+
             {isFullAccess && (
               <button
                 onClick={() => setShowThankYouModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FAF8F6] hover:bg-[#E6DDDD] text-[#221D1D] border border-[#E6DDDD] text-xs font-bold transition-all shadow-xs"
                 title="Generate & Send Client Thank You WhatsApp"
               >
-                <MessageSquare className="w-3.5 h-3.5 text-purple-600" />
-                <span className="hidden sm:inline">💬 Thank You Text</span>
+                <MessageSquare className="w-3.5 h-3.5 text-[#B7937A]" />
+                <span className="hidden sm:inline">Thank You</span>
               </button>
             )}
             <button
@@ -201,6 +278,71 @@ export default function OrderDetailsDrawer({
         {/* Content Body */}
         <div className="p-6 space-y-6 flex-1">
           
+          {/* Pending Correction Banner (Module 3) */}
+          {pendingCorrections.length > 0 && (
+            <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <FileEdit className="w-5 h-5 text-purple-700 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-purple-900">
+                      Order Correction Request Pending Review
+                    </h4>
+                    <p className="text-xs text-purple-800 mt-1">
+                      Requested by <strong>{pendingCorrections[0].requestedByName}</strong>: &quot;{pendingCorrections[0].reason}&quot;
+                    </p>
+                  </div>
+                </div>
+
+                {isFullAccess && !reviewingCorrectionId && (
+                  <button
+                    onClick={() => setReviewingCorrectionId(pendingCorrections[0].id)}
+                    className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shrink-0 shadow-xs"
+                  >
+                    Review Request
+                  </button>
+                )}
+              </div>
+
+              {/* Management Review Modal inline */}
+              {isFullAccess && reviewingCorrectionId === pendingCorrections[0].id && (
+                <div className="p-3 bg-white rounded-xl border border-purple-200 mt-2 space-y-3 text-xs">
+                  <div className="font-semibold text-slate-800">
+                    Requested Changes:
+                  </div>
+                  <pre className="p-2 bg-slate-50 rounded-lg text-[11px] font-mono overflow-x-auto text-slate-700">
+                    {JSON.stringify(pendingCorrections[0].requestedValues, null, 2)}
+                  </pre>
+                  
+                  <input
+                    type="text"
+                    placeholder="Decision notes (e.g. Approved price match with client)"
+                    value={correctionReviewNote}
+                    onChange={e => setCorrectionReviewNote(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-[#FAF8F6] border border-[#C8B5A9] rounded-lg text-xs"
+                  />
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      onClick={() => handleReviewCorrection(pendingCorrections[0].id, 'REJECTED')}
+                      disabled={updating}
+                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold text-xs"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => handleReviewCorrection(pendingCorrections[0].id, 'APPROVED')}
+                      disabled={updating}
+                      className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs"
+                    >
+                      Approve & Update Order
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Rate Warning Banner if in review */}
           {order.status === 'RATE_REVIEW' && (
             <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900">
@@ -210,7 +352,7 @@ export default function OrderDetailsDrawer({
                   <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">Rate Approval Required</h4>
                   <p className="text-xs text-amber-700 mt-1 leading-relaxed">
                     This order was submitted with a rate below standard approved pricing.
-                    {isFullAccess ? ' As Boss/Controller/Manager, you can approve or edit the rate below.' : ' Awaiting Controller or Manager review.'}
+                    {isFullAccess ? ' As Management, you can approve or edit the rate below.' : ' Awaiting Controller or Manager review.'}
                   </p>
                   {isFullAccess && !showRateEdit && (
                     <button
@@ -340,42 +482,68 @@ export default function OrderDetailsDrawer({
             </div>
           </div>
 
-          {/* Product Items Table */}
+          {/* Product Items Table with Module 7: Verified Technical Documents */}
           <div className="space-y-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ordered Products</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ordered Products & Technical Specs</span>
             <div className="border border-slate-100 rounded-2xl overflow-hidden">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
                   <tr>
-                    <th className="px-3 py-2 font-medium">Product</th>
+                    <th className="px-3 py-2 font-medium">Product & Technical Doc</th>
                     <th className="px-3 py-2 font-medium text-center">Qty</th>
                     <th className="px-3 py-2 font-medium text-right">Rate</th>
                     <th className="px-3 py-2 font-medium text-right">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {order.items.map(item => (
-                    <tr key={item.id} className="hover:bg-slate-50/50">
-                      <td className="px-3 py-2.5">
-                        <div className="font-semibold text-slate-800">{item.productName}</div>
-                        <div className="text-[10px] text-slate-400">{item.packing}</div>
-                        {item.isSpecialRate && (
-                          <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-bold">
-                            Special Rate
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-center font-medium text-slate-700">
-                        {item.quantity} {item.unit}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-slate-700">
-                        Rs. {item.offeredRate.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-bold text-slate-900">
-                        Rs. {item.totalAmount.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                  {order.items.map(item => {
+                    const normalizedName = item.productName.trim().toLowerCase();
+                    const linkedDoc = productLinks[normalizedName];
+
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50/50">
+                        <td className="px-3 py-2.5">
+                          <div className="font-semibold text-slate-800">{item.productName}</div>
+                          <div className="text-[10px] text-slate-400">{item.packing}</div>
+                          {item.isSpecialRate && (
+                            <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-bold">
+                              Special Rate
+                            </span>
+                          )}
+
+                          {/* Technical Document Linking indicator (Module 7) */}
+                          <div className="mt-1.5">
+                            {linkedDoc ? (
+                              <a
+                                href={`/documents?search=${encodeURIComponent(linkedDoc.documentTitle)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold hover:bg-emerald-100 transition-colors"
+                              >
+                                <FileCheck className="w-3 h-3 text-emerald-600" />
+                                <span>Verified: {linkedDoc.documentTitle}</span>
+                                <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
+                              </a>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 text-[9px] font-medium">
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                <span>No verified document available</span>
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-center font-medium text-slate-700">
+                          {item.quantity} {item.unit}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-medium text-slate-700">
+                          Rs. {item.offeredRate.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-bold text-slate-900">
+                          Rs. {item.totalAmount.toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -402,6 +570,20 @@ export default function OrderDetailsDrawer({
                   {order.paymentStatus} {order.paymentRemarks && `(${order.paymentRemarks})`}
                 </span>
               </div>
+
+              {/* Payment Ledger CTA for Management (Module 8) */}
+              {isFullAccess && (
+                <div className="pt-2 border-t border-slate-700/80 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-300">Auditable Payment Ledger</span>
+                  <Link
+                    href={`/ledger?orderId=${order.id}`}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold shadow-xs transition-all"
+                  >
+                    <Receipt className="w-3 h-3" />
+                    <span>Manage / Record Payments →</span>
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 
@@ -433,10 +615,9 @@ export default function OrderDetailsDrawer({
             </div>
           )}
 
-          {/* Management Status & Payment Controls */}
+          {/* Management Status Controls */}
           {isFullAccess && (
             <div className="p-4 rounded-2xl bg-[#FAF8F6] border border-[#B7937A]/25 space-y-4">
-              {/* Order Status Control */}
               <div>
                 <div className="text-xs font-bold text-[#221D1D] uppercase tracking-wider mb-2">
                   Order Workflow Status
@@ -543,44 +724,6 @@ export default function OrderDetailsDrawer({
                   )}
                 </div>
               </div>
-
-              {/* Separate Payment Status Selector */}
-              <div className="pt-3 border-t border-[#E6DDDD] flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div>
-                  <span className="font-bold text-[#221D1D] block">Update Payment Status</span>
-                  <span className="text-[11px] text-[#635858]">Current: <strong>{order.paymentStatus}</strong></span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {(['PENDING', 'ADVANCE', 'PARTIAL', 'PAID', 'CREDIT', 'REFUNDED'] as const).map(pStatus => (
-                    <button
-                      key={pStatus}
-                      disabled={updating || order.paymentStatus === pStatus}
-                      onClick={async () => {
-                        setUpdating(true);
-                        try {
-                          const res = await fetch(`/api/orders/${order.id}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              action: 'UPDATE_PAYMENT_STATUS',
-                              paymentStatus: pStatus,
-                            }),
-                          });
-                          if (res.ok) onOrderUpdated();
-                        } catch {}
-                        finally { setUpdating(false); }
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
-                        order.paymentStatus === pStatus
-                          ? 'bg-[#221D1D] text-white border-[#221D1D]'
-                          : 'bg-white text-[#635858] border-[#C8B5A9] hover:border-[#B7937A]'
-                      }`}
-                    >
-                      {pStatus}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
@@ -617,6 +760,19 @@ export default function OrderDetailsDrawer({
         currentUser={currentUser || null}
         onMessageSent={() => {
           onOrderUpdated();
+        }}
+      />
+
+      {/* Order Correction Request Modal (Module 3) */}
+      <OrderCorrectionModal
+        isOpen={showCorrectionModal}
+        onClose={() => setShowCorrectionModal(false)}
+        order={order}
+        onCorrectionRequested={() => {
+          onOrderUpdated();
+          fetch(`/api/orders/corrections?orderId=${order.id}`)
+            .then(r => r.json())
+            .then(d => setCorrections(d.requests || []));
         }}
       />
     </div>

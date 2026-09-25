@@ -1,4 +1,5 @@
 import { queryPostgres, withTransaction, assertPostgresConfigured } from './postgres';
+export { queryPostgres as query, queryPostgres, withTransaction };
 import { 
   User, 
   Product, 
@@ -23,7 +24,21 @@ import {
   TechnicalDocument,
   DocumentType,
   CopilotMessage,
-  CopilotConversation
+  CopilotConversation,
+  CustomerReminder,
+  ReminderPurpose,
+  ReminderStatus,
+  OrderCorrectionRequest,
+  CorrectionRequestStatus,
+  OperationalTask,
+  TaskPriority,
+  TaskStatus,
+  ProductDocumentLink,
+  PaymentLedgerEntry,
+  PaymentMethod,
+  PaymentType,
+  InboxItem,
+  BackupLog
 } from './types';
 import { validateOrderStatusTransition } from './order-state-machine';
 
@@ -149,6 +164,115 @@ function mapCopilotConversation(r: any): CopilotConversation {
     updatedAt: new Date(r.updated_at).toISOString(),
   };
 }
+
+function mapCustomerReminder(r: any): CustomerReminder {
+  return {
+    id: r.id,
+    customerId: r.customer_id || undefined,
+    customerName: r.customer_name || undefined,
+    orderId: r.order_id || undefined,
+    assignedToId: r.assigned_to_id,
+    assignedToName: r.assigned_to_name,
+    createdById: r.created_by_id,
+    createdByName: r.created_by_name,
+    dueDate: new Date(r.due_date).toISOString(),
+    purpose: r.purpose as ReminderPurpose,
+    notes: r.notes || undefined,
+    status: r.status as ReminderStatus,
+    outcomeNotes: r.outcome_notes || undefined,
+    completedAt: r.completed_at ? new Date(r.completed_at).toISOString() : undefined,
+    createdAt: new Date(r.created_at).toISOString(),
+    updatedAt: new Date(r.updated_at).toISOString(),
+  };
+}
+
+function mapOrderCorrection(r: any): OrderCorrectionRequest {
+  return {
+    id: r.id,
+    orderId: r.order_id,
+    orderNumber: r.order_number,
+    requestedById: r.requested_by_id,
+    requestedByName: r.requested_by_name,
+    reason: r.reason,
+    originalValues: typeof r.original_values === 'string' ? JSON.parse(r.original_values) : (r.original_values || {}),
+    requestedValues: typeof r.requested_values === 'string' ? JSON.parse(r.requested_values) : (r.requested_values || {}),
+    status: r.status as CorrectionRequestStatus,
+    decisionNote: r.decision_note || undefined,
+    reviewedById: r.reviewed_by_id || undefined,
+    reviewedByName: r.reviewed_by_name || undefined,
+    reviewedAt: r.reviewed_at ? new Date(r.reviewed_at).toISOString() : undefined,
+    createdAt: new Date(r.created_at).toISOString(),
+  };
+}
+
+function mapOperationalTask(r: any): OperationalTask {
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description || undefined,
+    assignedToId: r.assigned_to_id,
+    assignedToName: r.assigned_to_name,
+    createdById: r.created_by_id,
+    createdByName: r.created_by_name,
+    relatedOrderId: r.related_order_id || undefined,
+    relatedCustomerId: r.related_customer_id || undefined,
+    priority: r.priority as TaskPriority,
+    dueDate: new Date(r.due_date).toISOString(),
+    status: r.status as TaskStatus,
+    completionNotes: r.completion_notes || undefined,
+    completedAt: r.completed_at ? new Date(r.completed_at).toISOString() : undefined,
+    createdAt: new Date(r.created_at).toISOString(),
+    updatedAt: new Date(r.updated_at).toISOString(),
+  };
+}
+
+function mapProductDocumentLink(r: any): ProductDocumentLink {
+  return {
+    id: r.id,
+    productName: r.product_name,
+    productId: r.product_id || undefined,
+    documentId: r.document_id,
+    documentTitle: r.document_title,
+    linkedById: r.linked_by_id,
+    linkedByName: r.linked_by_name,
+    createdAt: new Date(r.created_at).toISOString(),
+  };
+}
+
+function mapPaymentLedgerEntry(r: any): PaymentLedgerEntry {
+  return {
+    id: r.id,
+    orderId: r.order_id,
+    orderNumber: r.order_number,
+    customerId: r.customer_id || undefined,
+    customerName: r.customer_name,
+    amount: Number(r.amount),
+    paymentDate: new Date(r.payment_date).toISOString().split('T')[0],
+    paymentMethod: r.payment_method as PaymentMethod,
+    referenceNumber: r.reference_number || undefined,
+    paymentType: r.payment_type as PaymentType,
+    notes: r.notes || undefined,
+    recordedById: r.recorded_by_id,
+    recordedByName: r.recorded_by_name,
+    createdAt: new Date(r.created_at).toISOString(),
+  };
+}
+
+function mapBackupLog(r: any): BackupLog {
+  return {
+    id: r.id,
+    backupType: r.backup_type,
+    status: r.status,
+    fileName: r.file_name || undefined,
+    fileSizeBytes: Number(r.file_size_bytes || 0),
+    storageLocation: r.storage_location || undefined,
+    errorMessage: r.error_message || undefined,
+    triggeredById: r.triggered_by_id || undefined,
+    triggeredByName: r.triggered_by_name || undefined,
+    createdAt: new Date(r.created_at).toISOString(),
+  };
+}
+
 
 function mapProduct(r: any): Product {
   return {
@@ -1638,7 +1762,7 @@ export const db = {
     message: string;
     orderId?: string;
     orderNumber?: string;
-    type: 'NEW_ORDER' | 'RATE_REVIEW' | 'STATUS_CHANGE' | 'APPROVAL' | 'DELIVERY';
+    type: 'NEW_ORDER' | 'RATE_REVIEW' | 'STATUS_CHANGE' | 'APPROVAL' | 'DELIVERY' | 'REMINDER' | 'ORDER_UPDATE' | 'TASK' | 'SYSTEM';
     recipientRoles?: Role[];
     userId?: string;
   }): Promise<Notification> => {
@@ -2169,5 +2293,1065 @@ export const db = {
     );
     return rows.map(mapCopilotConversation);
   },
+
+  // ──────────────────────────────────────────────
+  // CUSTOMER FOLLOW-UP REMINDERS
+  // ──────────────────────────────────────────────
+  getCustomerReminders: async (options?: {
+    assignedToId?: string;
+    customerId?: string;
+    orderId?: string;
+    status?: ReminderStatus | 'ALL';
+    isOverdue?: boolean;
+    isManagement?: boolean;
+  }): Promise<CustomerReminder[]> => {
+    assertPostgresConfigured();
+    let q = 'SELECT * FROM customer_reminders WHERE 1=1';
+    const params: any[] = [];
+    let idx = 1;
+
+    if (!options?.isManagement && options?.assignedToId) {
+      q += ` AND assigned_to_id = $${idx++}`;
+      params.push(options.assignedToId);
+    } else if (options?.assignedToId && options.assignedToId !== 'ALL') {
+      q += ` AND assigned_to_id = $${idx++}`;
+      params.push(options.assignedToId);
+    }
+
+    if (options?.customerId) {
+      q += ` AND customer_id = $${idx++}`;
+      params.push(options.customerId);
+    }
+
+    if (options?.orderId) {
+      q += ` AND order_id = $${idx++}`;
+      params.push(options.orderId);
+    }
+
+    if (options?.status && options.status !== 'ALL') {
+      q += ` AND status = $${idx++}`;
+      params.push(options.status);
+    }
+
+    if (options?.isOverdue) {
+      q += " AND status = 'PENDING' AND due_date < CURRENT_TIMESTAMP";
+    }
+
+    q += ' ORDER BY due_date ASC';
+    const rows = await queryPostgres(q, params);
+    return rows.map(mapCustomerReminder);
+  },
+
+  createCustomerReminder: async (data: {
+    customerId?: string;
+    customerName?: string;
+    orderId?: string;
+    assignedToId: string;
+    assignedToName: string;
+    createdById: string;
+    createdByName: string;
+    dueDate: string;
+    purpose: ReminderPurpose;
+    notes?: string;
+  }): Promise<CustomerReminder> => {
+    assertPostgresConfigured();
+    const id = `rem_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const now = new Date().toISOString();
+
+    const q = `
+      INSERT INTO customer_reminders (
+        id, customer_id, customer_name, order_id, assigned_to_id, assigned_to_name,
+        created_by_id, created_by_name, due_date, purpose, notes, status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'PENDING', $12, $13)
+      RETURNING *
+    `;
+
+    const rows = await queryPostgres(q, [
+      id,
+      data.customerId || null,
+      data.customerName || null,
+      data.orderId || null,
+      data.assignedToId,
+      data.assignedToName,
+      data.createdById,
+      data.createdByName,
+      data.dueDate,
+      data.purpose,
+      data.notes || null,
+      now,
+      now,
+    ]);
+
+    await db.createNotification({
+      title: '⏰ New Customer Follow-up Reminder',
+      message: `Follow-up assigned for ${data.customerName || 'Client'}: ${data.purpose} by ${new Date(data.dueDate).toLocaleDateString()}`,
+      userId: data.assignedToId,
+      type: 'REMINDER',
+    });
+
+    return mapCustomerReminder(rows[0]);
+  },
+
+  updateCustomerReminder: async (
+    id: string,
+    updates: {
+      status?: ReminderStatus;
+      outcomeNotes?: string;
+      notes?: string;
+      dueDate?: string;
+    }
+  ): Promise<CustomerReminder | null> => {
+    assertPostgresConfigured();
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.status !== undefined) {
+      fields.push(`status = $${idx++}`);
+      values.push(updates.status);
+      if (updates.status === 'COMPLETED') {
+        fields.push(`completed_at = CURRENT_TIMESTAMP`);
+      }
+    }
+    if (updates.outcomeNotes !== undefined) {
+      fields.push(`outcome_notes = $${idx++}`);
+      values.push(updates.outcomeNotes);
+    }
+    if (updates.notes !== undefined) {
+      fields.push(`notes = $${idx++}`);
+      values.push(updates.notes);
+    }
+    if (updates.dueDate !== undefined) {
+      fields.push(`due_date = $${idx++}`);
+      values.push(updates.dueDate);
+    }
+
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
+
+    const q = `UPDATE customer_reminders SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const rows = await queryPostgres(q, values);
+    return rows.length > 0 ? mapCustomerReminder(rows[0]) : null;
+  },
+
+  // ──────────────────────────────────────────────
+  // ORDER CORRECTION REQUESTS
+  // ──────────────────────────────────────────────
+  getOrderCorrectionRequests: async (options?: {
+    orderId?: string;
+    requestedById?: string;
+    status?: CorrectionRequestStatus | 'ALL';
+    isManagement?: boolean;
+  }): Promise<OrderCorrectionRequest[]> => {
+    assertPostgresConfigured();
+    let q = 'SELECT * FROM order_correction_requests WHERE 1=1';
+    const params: any[] = [];
+    let idx = 1;
+
+    if (!options?.isManagement && options?.requestedById) {
+      q += ` AND requested_by_id = $${idx++}`;
+      params.push(options.requestedById);
+    }
+
+    if (options?.orderId) {
+      q += ` AND order_id = $${idx++}`;
+      params.push(options.orderId);
+    }
+
+    if (options?.status && options.status !== 'ALL') {
+      q += ` AND status = $${idx++}`;
+      params.push(options.status);
+    }
+
+    q += ' ORDER BY created_at DESC';
+    const rows = await queryPostgres(q, params);
+    return rows.map(mapOrderCorrection);
+  },
+
+  createOrderCorrectionRequest: async (data: {
+    orderId: string;
+    orderNumber: string;
+    requestedById: string;
+    requestedByName: string;
+    reason: string;
+    originalValues: any;
+    requestedValues: any;
+  }): Promise<OrderCorrectionRequest> => {
+    assertPostgresConfigured();
+    const id = `corr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const now = new Date().toISOString();
+
+    const q = `
+      INSERT INTO order_correction_requests (
+        id, order_id, order_number, requested_by_id, requested_by_name,
+        reason, original_values, requested_values, status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING', $9)
+      RETURNING *
+    `;
+
+    const rows = await queryPostgres(q, [
+      id,
+      data.orderId,
+      data.orderNumber,
+      data.requestedById,
+      data.requestedByName,
+      data.reason,
+      JSON.stringify(data.originalValues),
+      JSON.stringify(data.requestedValues),
+      now,
+    ]);
+
+    await db.createNotification({
+      title: '⚠️ Order Correction Requested',
+      message: `${data.requestedByName} requested a correction for order ${data.orderNumber}: "${data.reason}".`,
+      orderId: data.orderId,
+      orderNumber: data.orderNumber,
+      recipientRoles: ['BOSS', 'CONTROLLER', 'MANAGER'],
+      type: 'ORDER_UPDATE',
+    });
+
+    return mapOrderCorrection(rows[0]);
+  },
+
+  reviewOrderCorrectionRequest: async (
+    id: string,
+    reviewer: { id: string; name: string; role: Role },
+    decision: 'APPROVED' | 'REJECTED',
+    decisionNote?: string
+  ): Promise<OrderCorrectionRequest | null> => {
+    assertPostgresConfigured();
+    return withTransaction(async (client) => {
+      const getRes = await client.query('SELECT * FROM order_correction_requests WHERE id = $1 FOR UPDATE', [id]);
+      if (getRes.rows.length === 0) return null;
+
+      const reqRow = getRes.rows[0];
+      const now = new Date().toISOString();
+
+      if (decision === 'APPROVED') {
+        const reqValues = typeof reqRow.requested_values === 'string' ? JSON.parse(reqRow.requested_values) : reqRow.requested_values;
+
+        // Update fields on order if present
+        const orderFields: string[] = [];
+        const orderVals: any[] = [];
+        let oIdx = 1;
+
+        if (reqValues.customerName !== undefined) { orderFields.push(`customer_name = $${oIdx++}`); orderVals.push(reqValues.customerName); }
+        if (reqValues.companyName !== undefined) { orderFields.push(`company_name = $${oIdx++}`); orderVals.push(reqValues.companyName); }
+        if (reqValues.customerPhone !== undefined) { orderFields.push(`customer_phone = $${oIdx++}`); orderVals.push(reqValues.customerPhone); }
+        if (reqValues.city !== undefined) { orderFields.push(`city = $${oIdx++}`); orderVals.push(reqValues.city); }
+        if (reqValues.deliveryAddress !== undefined) { orderFields.push(`delivery_address = $${oIdx++}`); orderVals.push(reqValues.deliveryAddress); }
+        if (reqValues.grandTotal !== undefined) {
+          orderFields.push(`grand_total = $${oIdx++}`); orderVals.push(reqValues.grandTotal);
+          orderFields.push(`subtotal = $${oIdx++}`); orderVals.push(reqValues.grandTotal);
+        }
+        if (reqValues.requiredDeliveryDate !== undefined) { orderFields.push(`required_delivery_date = $${oIdx++}`); orderVals.push(reqValues.requiredDeliveryDate); }
+
+        if (orderFields.length > 0) {
+          orderFields.push(`updated_at = $${oIdx++}`);
+          orderVals.push(now);
+          orderVals.push(reqRow.order_id);
+          await client.query(`UPDATE orders SET ${orderFields.join(', ')} WHERE id = $${oIdx}`, orderVals);
+        }
+
+        // Record history
+        await client.query(`
+          INSERT INTO order_status_history (id, order_id, previous_status, new_status, changed_by_id, changed_by_name, timestamp, note)
+          VALUES ($1, $2, (SELECT status FROM orders WHERE id = $2), (SELECT status FROM orders WHERE id = $2), $3, $4, $5, $6)
+        `, [
+          `hist_${Date.now()}`,
+          reqRow.order_id,
+          reviewer.id,
+          reviewer.name,
+          now,
+          `Correction approved by ${reviewer.name}: ${decisionNote || reqRow.reason}`
+        ]);
+      }
+
+      // Update correction request record
+      const updRes = await client.query(`
+        UPDATE order_correction_requests
+        SET status = $1, decision_note = $2, reviewed_by_id = $3, reviewed_by_name = $4, reviewed_at = $5
+        WHERE id = $6
+        RETURNING *
+      `, [decision, decisionNote || null, reviewer.id, reviewer.name, now, id]);
+
+      // Notify requesting salesperson
+      await client.query(`
+        INSERT INTO notifications (id, title, message, order_id, order_number, user_id, type, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'ORDER_UPDATE', $7)
+      `, [
+        `notif_${Date.now()}`,
+        `Order Correction ${decision}`,
+        `Your correction request for ${reqRow.order_number} was ${decision} by ${reviewer.name}.`,
+        reqRow.order_id,
+        reqRow.order_number,
+        reqRow.requested_by_id,
+        now,
+      ]);
+
+      return mapOrderCorrection(updRes.rows[0]);
+    });
+  },
+
+  // ──────────────────────────────────────────────
+  // OPERATIONAL TASKS
+  // ──────────────────────────────────────────────
+  getOperationalTasks: async (options?: {
+    assignedToId?: string;
+    status?: TaskStatus | 'ALL';
+    priority?: TaskPriority | 'ALL';
+    isManagement?: boolean;
+  }): Promise<OperationalTask[]> => {
+    assertPostgresConfigured();
+    let q = 'SELECT * FROM operational_tasks WHERE 1=1';
+    const params: any[] = [];
+    let idx = 1;
+
+    if (!options?.isManagement && options?.assignedToId) {
+      q += ` AND assigned_to_id = $${idx++}`;
+      params.push(options.assignedToId);
+    } else if (options?.assignedToId && options.assignedToId !== 'ALL') {
+      q += ` AND assigned_to_id = $${idx++}`;
+      params.push(options.assignedToId);
+    }
+
+    if (options?.status && options.status !== 'ALL') {
+      q += ` AND status = $${idx++}`;
+      params.push(options.status);
+    }
+
+    if (options?.priority && options.priority !== 'ALL') {
+      q += ` AND priority = $${idx++}`;
+      params.push(options.priority);
+    }
+
+    q += ' ORDER BY due_date ASC';
+    const rows = await queryPostgres(q, params);
+    return rows.map(mapOperationalTask);
+  },
+
+  createOperationalTask: async (data: {
+    title: string;
+    description?: string;
+    assignedToId: string;
+    assignedToName: string;
+    createdById: string;
+    createdByName: string;
+    relatedOrderId?: string;
+    relatedCustomerId?: string;
+    priority?: TaskPriority;
+    dueDate: string;
+  }): Promise<OperationalTask> => {
+    assertPostgresConfigured();
+    const id = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const now = new Date().toISOString();
+
+    const q = `
+      INSERT INTO operational_tasks (
+        id, title, description, assigned_to_id, assigned_to_name,
+        created_by_id, created_by_name, related_order_id, related_customer_id,
+        priority, due_date, status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'ASSIGNED', $12, $13)
+      RETURNING *
+    `;
+
+    const rows = await queryPostgres(q, [
+      id,
+      data.title.trim(),
+      data.description?.trim() || null,
+      data.assignedToId,
+      data.assignedToName,
+      data.createdById,
+      data.createdByName,
+      data.relatedOrderId || null,
+      data.relatedCustomerId || null,
+      data.priority || 'MEDIUM',
+      data.dueDate,
+      now,
+      now,
+    ]);
+
+    await db.createNotification({
+      title: '📋 New Operational Task Assigned',
+      message: `You were assigned task: "${data.title}" by ${data.createdByName}. Due: ${new Date(data.dueDate).toLocaleDateString()}`,
+      userId: data.assignedToId,
+      type: 'TASK',
+    });
+
+    return mapOperationalTask(rows[0]);
+  },
+
+  updateOperationalTask: async (
+    id: string,
+    updates: {
+      status?: TaskStatus;
+      completionNotes?: string;
+      priority?: TaskPriority;
+      dueDate?: string;
+    }
+  ): Promise<OperationalTask | null> => {
+    assertPostgresConfigured();
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (updates.status !== undefined) {
+      fields.push(`status = $${idx++}`);
+      values.push(updates.status);
+      if (updates.status === 'COMPLETED') {
+        fields.push(`completed_at = CURRENT_TIMESTAMP`);
+      }
+    }
+    if (updates.completionNotes !== undefined) {
+      fields.push(`completion_notes = $${idx++}`);
+      values.push(updates.completionNotes);
+    }
+    if (updates.priority !== undefined) {
+      fields.push(`priority = $${idx++}`);
+      values.push(updates.priority);
+    }
+    if (updates.dueDate !== undefined) {
+      fields.push(`due_date = $${idx++}`);
+      values.push(updates.dueDate);
+    }
+
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
+
+    const q = `UPDATE operational_tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const rows = await queryPostgres(q, values);
+    return rows.length > 0 ? mapOperationalTask(rows[0]) : null;
+  },
+
+  deleteOperationalTask: async (id: string): Promise<boolean> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('DELETE FROM operational_tasks WHERE id = $1 RETURNING id', [id]);
+    return rows.length > 0;
+  },
+
+  // ──────────────────────────────────────────────
+  // PRODUCT DOCUMENT LINKS
+  // ──────────────────────────────────────────────
+  getProductDocumentLinks: async (productName?: string): Promise<ProductDocumentLink[]> => {
+    assertPostgresConfigured();
+    let q = 'SELECT * FROM product_document_links WHERE 1=1';
+    const params: any[] = [];
+    if (productName && productName.trim()) {
+      q += ' AND LOWER(product_name) = LOWER($1)';
+      params.push(productName.trim());
+    }
+    q += ' ORDER BY created_at DESC';
+    const rows = await queryPostgres(q, params);
+    return rows.map(mapProductDocumentLink);
+  },
+
+  linkProductDocument: async (data: {
+    productName: string;
+    productId?: string;
+    documentId: string;
+    documentTitle: string;
+    linkedById: string;
+    linkedByName: string;
+  }): Promise<ProductDocumentLink> => {
+    assertPostgresConfigured();
+    const id = `pdl_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const q = `
+      INSERT INTO product_document_links (id, product_name, product_id, document_id, document_title, linked_by_id, linked_by_name)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `;
+    const rows = await queryPostgres(q, [
+      id,
+      data.productName.trim(),
+      data.productId || null,
+      data.documentId,
+      data.documentTitle,
+      data.linkedById,
+      data.linkedByName,
+    ]);
+    return mapProductDocumentLink(rows[0]);
+  },
+
+  unlinkProductDocument: async (id: string): Promise<boolean> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('DELETE FROM product_document_links WHERE id = $1 RETURNING id', [id]);
+    return rows.length > 0;
+  },
+
+  // ──────────────────────────────────────────────
+  // PAYMENT LEDGER & FINANCIALS
+  // ──────────────────────────────────────────────
+  getPaymentLedger: async (options?: {
+    orderId?: string;
+    customerId?: string;
+    startDate?: string;
+    endDate?: string;
+    paymentType?: PaymentType;
+  }): Promise<PaymentLedgerEntry[]> => {
+    assertPostgresConfigured();
+    let q = 'SELECT * FROM payment_ledger WHERE 1=1';
+    const params: any[] = [];
+    let idx = 1;
+
+    if (options?.orderId) {
+      q += ` AND order_id = $${idx++}`;
+      params.push(options.orderId);
+    }
+    if (options?.customerId) {
+      q += ` AND customer_id = $${idx++}`;
+      params.push(options.customerId);
+    }
+    if (options?.paymentType) {
+      q += ` AND payment_type = $${idx++}`;
+      params.push(options.paymentType);
+    }
+    if (options?.startDate) {
+      q += ` AND payment_date >= $${idx++}`;
+      params.push(options.startDate);
+    }
+    if (options?.endDate) {
+      q += ` AND payment_date <= $${idx++}`;
+      params.push(options.endDate);
+    }
+
+    q += ' ORDER BY payment_date DESC, created_at DESC';
+    const rows = await queryPostgres(q, params);
+    return rows.map(mapPaymentLedgerEntry);
+  },
+
+  recordPayment: async (data: {
+    orderId: string;
+    orderNumber: string;
+    customerId?: string;
+    customerName: string;
+    amount: number;
+    paymentDate: string;
+    paymentMethod: PaymentMethod;
+    referenceNumber?: string;
+    paymentType: PaymentType;
+    notes?: string;
+    recordedById: string;
+    recordedByName: string;
+  }): Promise<PaymentLedgerEntry> => {
+    assertPostgresConfigured();
+    return withTransaction(async (client) => {
+      const id = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const now = new Date().toISOString();
+
+      // 1. Insert payment ledger entry
+      const insertQ = `
+        INSERT INTO payment_ledger (
+          id, order_id, order_number, customer_id, customer_name,
+          amount, payment_date, payment_method, reference_number,
+          payment_type, notes, recorded_by_id, recorded_by_name, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING *
+      `;
+
+      const pRows = await client.query(insertQ, [
+        id,
+        data.orderId,
+        data.orderNumber,
+        data.customerId || null,
+        data.customerName,
+        data.amount,
+        data.paymentDate,
+        data.paymentMethod,
+        data.referenceNumber || null,
+        data.paymentType,
+        data.notes || null,
+        data.recordedById,
+        data.recordedByName,
+        now,
+      ]);
+
+      // 2. Calculate new payment total for this order
+      const totalsRes = await client.query(`
+        SELECT 
+          COALESCE(SUM(CASE WHEN payment_type != 'REFUND' THEN amount ELSE -amount END), 0) as net_paid
+        FROM payment_ledger
+        WHERE order_id = $1
+      `, [data.orderId]);
+
+      const netPaid = Number(totalsRes.rows[0].net_paid);
+
+      const orderRes = await client.query('SELECT grand_total FROM orders WHERE id = $1', [data.orderId]);
+      if (orderRes.rows.length > 0) {
+        const grandTotal = Number(orderRes.rows[0].grand_total);
+        let newStatus: PaymentStatus = 'PENDING';
+
+        if (netPaid >= grandTotal && grandTotal > 0) {
+          newStatus = 'PAID';
+        } else if (netPaid > 0 && data.paymentType === 'ADVANCE') {
+          newStatus = 'ADVANCE';
+        } else if (netPaid > 0 && netPaid < grandTotal) {
+          newStatus = 'PARTIAL';
+        } else if (data.paymentType === 'REFUND') {
+          newStatus = 'REFUNDED';
+        }
+
+        await client.query('UPDATE orders SET payment_status = $1, updated_at = $2 WHERE id = $3', [
+          newStatus,
+          now,
+          data.orderId,
+        ]);
+      }
+
+      await client.query(`
+        INSERT INTO audit_logs (id, user_id, user_name, user_role, action, entity, entity_id, new_value, timestamp)
+        VALUES ($1, $2, $3, 'MANAGER', 'RECORD_PAYMENT', 'PAYMENT_LEDGER', $4, $5, $6)
+      `, [
+        `aud_${Date.now()}`,
+        data.recordedById,
+        data.recordedByName,
+        id,
+        `Recorded Rs. ${data.amount} (${data.paymentType}) for order ${data.orderNumber}`,
+        now,
+      ]);
+
+      return mapPaymentLedgerEntry(pRows.rows[0]);
+    });
+  },
+
+  getOrderFinancials: async (orderId: string): Promise<{
+    grandTotal: number;
+    totalPaid: number;
+    outstandingBalance: number;
+    paymentStatus: PaymentStatus;
+    payments: PaymentLedgerEntry[];
+  }> => {
+    assertPostgresConfigured();
+    const orderRes = await queryPostgres('SELECT grand_total, payment_status FROM orders WHERE id = $1', [orderId]);
+    if (orderRes.length === 0) {
+      return { grandTotal: 0, totalPaid: 0, outstandingBalance: 0, paymentStatus: 'PENDING', payments: [] };
+    }
+
+    const grandTotal = Number(orderRes[0].grand_total);
+    const payments = await db.getPaymentLedger({ orderId });
+    const totalPaid = payments.reduce((acc, p) => p.paymentType === 'REFUND' ? acc - p.amount : acc + p.amount, 0);
+    const outstandingBalance = Math.max(0, grandTotal - totalPaid);
+
+    return {
+      grandTotal,
+      totalPaid,
+      outstandingBalance,
+      paymentStatus: orderRes[0].payment_status,
+      payments,
+    };
+  },
+
+  // ──────────────────────────────────────────────
+  // DUPLICATE CUSTOMER DETECTION & MERGE
+  // ──────────────────────────────────────────────
+  checkDuplicateCustomer: async (phone: string, companyName: string, excludeId?: string): Promise<Customer[]> => {
+    assertPostgresConfigured();
+    const cleanPhone = phone.replace(/\D/g, '');
+    let q = `
+      SELECT * FROM customers 
+      WHERE (
+        regexp_replace(phone, '\\D', '', 'g') = $1
+        OR regexp_replace(COALESCE(whatsapp, ''), '\\D', '', 'g') = $1
+        OR (LOWER(company_name) = LOWER($2) AND LENGTH($2) > 2)
+      )
+    `;
+    const params: any[] = [cleanPhone, companyName.trim()];
+
+    if (excludeId) {
+      q += ' AND id != $3';
+      params.push(excludeId);
+    }
+
+    const rows = await queryPostgres(q, params);
+    return rows.map(r => mapCustomer(r));
+  },
+
+  mergeCustomers: async (
+    primaryId: string,
+    secondaryId: string,
+    actor: { id: string; name: string; role: Role }
+  ): Promise<{ success: boolean; reassignedOrders: number }> => {
+    assertPostgresConfigured();
+    return withTransaction(async (client) => {
+      // 1. Verify both exist
+      const pRes = await client.query('SELECT * FROM customers WHERE id = $1', [primaryId]);
+      const sRes = await client.query('SELECT * FROM customers WHERE id = $1', [secondaryId]);
+      if (pRes.rows.length === 0 || sRes.rows.length === 0) {
+        throw new Error('Primary or Secondary customer record not found');
+      }
+
+      const primary = pRes.rows[0];
+      const secondary = sRes.rows[0];
+
+      // 2. Reassign Orders
+      const ordRes = await client.query(
+        'UPDATE orders SET customer_id = $1 WHERE customer_id = $2 RETURNING id',
+        [primaryId, secondaryId]
+      );
+
+      // 3. Reassign Reminders, Tasks, Payment Ledger
+      await client.query('UPDATE customer_reminders SET customer_id = $1 WHERE customer_id = $2', [primaryId, secondaryId]);
+      await client.query('UPDATE operational_tasks SET related_customer_id = $1 WHERE related_customer_id = $2', [primaryId, secondaryId]);
+      await client.query('UPDATE payment_ledger SET customer_id = $1 WHERE customer_id = $2', [primaryId, secondaryId]);
+
+      // 4. Update secondary notes and mark as merged
+      const mergeNote = ` [MERGED into ${primary.name} (${primary.company_name}) on ${new Date().toISOString().split('T')[0]} by ${actor.name}]`;
+      await client.query(
+        'UPDATE customers SET notes = COALESCE(notes, \'\') || $1, customer_type = \'MERGED\' WHERE id = $2',
+        [mergeNote, secondaryId]
+      );
+
+      // 5. Audit Log
+      await client.query(`
+        INSERT INTO audit_logs (id, user_id, user_name, user_role, action, entity, entity_id, old_value, new_value, timestamp)
+        VALUES ($1, $2, $3, $4, 'MERGE_CUSTOMERS', 'CUSTOMER', $5, $6, $7, CURRENT_TIMESTAMP)
+      `, [
+        `aud_${Date.now()}`,
+        actor.id,
+        actor.name,
+        actor.role,
+        primaryId,
+        `Merged secondary customer ${secondary.name} (${secondary.id})`,
+        `Reassigned ${ordRes.rows.length} orders to primary customer ${primary.name}`
+      ]);
+
+      return { success: true, reassignedOrders: ordRes.rows.length };
+    });
+  },
+
+  // ──────────────────────────────────────────────
+  // SMART WORK INBOX
+  // ──────────────────────────────────────────────
+  getUnifiedInbox: async (user: { id: string; role: Role; name: string }): Promise<{
+    items: InboxItem[];
+    totalUnread: number;
+    inProgressCount: number;
+    completedCount: number;
+  }> => {
+    assertPostgresConfigured();
+    const isMgmt = ['BOSS', 'CONTROLLER', 'MANAGER'].includes(user.role);
+    const items: InboxItem[] = [];
+
+    // 1. Operational Tasks
+    const tasks = await db.getOperationalTasks({
+      assignedToId: isMgmt ? undefined : user.id,
+      isManagement: isMgmt,
+    });
+    tasks.forEach(t => {
+      items.push({
+        id: `tsk_${t.id}`,
+        type: 'TASK',
+        title: `Task: ${t.title}`,
+        description: t.description || `Assigned to ${t.assignedToName}`,
+        entityId: t.id,
+        relatedUrl: `/team`,
+        priority: t.priority,
+        assignedToId: t.assignedToId,
+        assignedToName: t.assignedToName,
+        isRead: false,
+        status: t.status === 'COMPLETED' ? 'COMPLETED' : t.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'PENDING',
+        createdAt: t.createdAt,
+        dueDate: t.dueDate,
+      });
+    });
+
+    // 2. Customer Follow-up Reminders
+    const reminders = await db.getCustomerReminders({
+      assignedToId: isMgmt ? undefined : user.id,
+      isManagement: isMgmt,
+    });
+    reminders.forEach(r => {
+      items.push({
+        id: `rem_${r.id}`,
+        type: 'REMINDER',
+        title: `Follow-up: ${r.customerName || 'Client'} (${r.purpose})`,
+        description: r.notes || `Due by ${new Date(r.dueDate).toLocaleDateString()}`,
+        entityId: r.id,
+        relatedUrl: `/customers`,
+        assignedToId: r.assignedToId,
+        assignedToName: r.assignedToName,
+        isRead: false,
+        status: r.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
+        createdAt: r.createdAt,
+        dueDate: r.dueDate,
+      });
+    });
+
+    // 3. Order Correction Requests
+    const corrections = await db.getOrderCorrectionRequests({
+      requestedById: isMgmt ? undefined : user.id,
+      isManagement: isMgmt,
+    });
+    corrections.forEach(c => {
+      items.push({
+        id: `corr_${c.id}`,
+        type: 'CORRECTION',
+        title: `Correction Request: ${c.orderNumber}`,
+        description: `Reason: "${c.reason}" — Requested by ${c.requestedByName}`,
+        entityId: c.id,
+        relatedUrl: `/orders`,
+        isRead: false,
+        status: c.status === 'APPROVED' ? 'COMPLETED' : c.status === 'REJECTED' ? 'COMPLETED' : 'PENDING',
+        createdAt: c.createdAt,
+      });
+    });
+
+    // 4. Voice Orders (Management Inbox)
+    if (isMgmt) {
+      const voiceOrders = await db.getVoiceOrders({ status: 'PENDING' });
+      voiceOrders.forEach(vo => {
+        items.push({
+          id: `vo_${vo.id}`,
+          type: 'VOICE_ORDER',
+          title: `Voice Order: ${vo.extractedCustomerName || vo.userName}`,
+          description: vo.transcript.substring(0, 100),
+          entityId: vo.id,
+          relatedUrl: `/`,
+          isRead: false,
+          status: 'PENDING',
+          createdAt: vo.createdAt,
+        });
+      });
+    }
+
+    // 5. Query user's inbox state overrides from PostgreSQL
+    const states = await queryPostgres('SELECT * FROM inbox_item_states WHERE user_id = $1', [user.id]);
+    const stateMap = new Map<string, { is_read: boolean; status: string }>();
+    states.forEach((s: any) => {
+      stateMap.set(`${s.item_type}_${s.item_id}`, { is_read: Boolean(s.is_read), status: s.status });
+    });
+
+    // Merge states
+    items.forEach(it => {
+      const key = `${it.type}_${it.entityId}`;
+      if (stateMap.has(key)) {
+        const s = stateMap.get(key)!;
+        it.isRead = s.is_read;
+        if (s.status) it.status = s.status as any;
+      }
+    });
+
+    // Sort by createdAt desc
+    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const totalUnread = items.filter(i => !i.isRead).length;
+    const inProgressCount = items.filter(i => i.status === 'IN_PROGRESS').length;
+    const completedCount = items.filter(i => i.status === 'COMPLETED').length;
+
+    return { items, totalUnread, inProgressCount, completedCount };
+  },
+
+  setInboxItemState: async (
+    userId: string,
+    itemType: string,
+    itemId: string,
+    isRead?: boolean,
+    status?: string
+  ): Promise<boolean> => {
+    assertPostgresConfigured();
+    const id = `ibx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const now = new Date().toISOString();
+
+    const q = `
+      INSERT INTO inbox_item_states (id, user_id, item_type, item_id, is_read, read_at, status, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (user_id, item_type, item_id) DO UPDATE SET
+        is_read = COALESCE($5, inbox_item_states.is_read),
+        read_at = CASE WHEN $5 = TRUE THEN CURRENT_TIMESTAMP ELSE inbox_item_states.read_at END,
+        status = COALESCE($7, inbox_item_states.status),
+        completed_at = CASE WHEN $7 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE inbox_item_states.completed_at END
+    `;
+
+    await queryPostgres(q, [
+      id,
+      userId,
+      itemType,
+      itemId,
+      isRead !== undefined ? isRead : null,
+      isRead ? now : null,
+      status || null,
+      now,
+    ]);
+
+    return true;
+  },
+
+  // ──────────────────────────────────────────────
+  // GLOBAL SEARCH (PERMISSION-AWARE)
+  // ──────────────────────────────────────────────
+  globalSearch: async (
+    query: string,
+    user: { id: string; role: Role },
+    entityType?: string,
+    limit = 20
+  ): Promise<Array<{
+    id: string;
+    type: 'ORDER' | 'CUSTOMER' | 'DOCUMENT' | 'DELIVERY' | 'TASK';
+    title: string;
+    subtitle: string;
+    badge: string;
+    url: string;
+    date: string;
+    details?: any;
+  }>> => {
+    assertPostgresConfigured();
+    const isMgmt = ['BOSS', 'CONTROLLER', 'MANAGER'].includes(user.role);
+    const term = `%${query.trim().toLowerCase()}%`;
+    const results: any[] = [];
+
+    // 1. Orders Search
+    if (!entityType || entityType === 'ORDER') {
+      let ordQ = `
+        SELECT o.id, o.order_number, o.customer_name, o.company_name, o.grand_total, o.status, o.created_at, o.order_taken_by_name
+        FROM orders o
+        WHERE (
+          LOWER(o.order_number) LIKE $1
+          OR LOWER(o.customer_name) LIKE $1
+          OR LOWER(o.company_name) LIKE $1
+          OR LOWER(o.customer_phone) LIKE $1
+          OR LOWER(o.city) LIKE $1
+          OR EXISTS (
+            SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND LOWER(oi.product_name) LIKE $1
+          )
+        )
+      `;
+      const ordParams: any[] = [term];
+      if (!isMgmt) {
+        ordQ += ' AND o.order_taken_by_id = $2';
+        ordParams.push(user.id);
+      }
+      ordQ += ` ORDER BY o.created_at DESC LIMIT ${limit}`;
+      const ordRows = await queryPostgres(ordQ, ordParams);
+      ordRows.forEach((r: any) => {
+        results.push({
+          id: r.id,
+          type: 'ORDER',
+          title: `${r.order_number} — ${r.company_name}`,
+          subtitle: `${r.customer_name} • Taken by ${r.order_taken_by_name} • Rs. ${Number(r.grand_total).toLocaleString()}`,
+          badge: r.status,
+          url: `/orders?search=${r.order_number}`,
+          date: new Date(r.created_at).toLocaleDateString(),
+        });
+      });
+    }
+
+    // 2. Customers Search
+    if (!entityType || entityType === 'CUSTOMER') {
+      const custRows = await queryPostgres(`
+        SELECT id, name, company_name, phone, city, created_at
+        FROM customers
+        WHERE (LOWER(name) LIKE $1 OR LOWER(company_name) LIKE $1 OR LOWER(phone) LIKE $1 OR LOWER(city) LIKE $1)
+        ORDER BY created_at DESC LIMIT ${limit}
+      `, [term]);
+      custRows.forEach((r: any) => {
+        results.push({
+          id: r.id,
+          type: 'CUSTOMER',
+          title: `${r.company_name} (${r.name})`,
+          subtitle: `${r.phone} • ${r.city}`,
+          badge: 'Customer',
+          url: `/customers?search=${encodeURIComponent(r.name)}`,
+          date: new Date(r.created_at).toLocaleDateString(),
+        });
+      });
+    }
+
+    // 3. Technical Documents Search
+    if (!entityType || entityType === 'DOCUMENT') {
+      let docQ = `
+        SELECT id, title, product_name, document_type, category, created_at, visibility
+        FROM technical_documents
+        WHERE (LOWER(title) LIKE $1 OR LOWER(product_name) LIKE $1 OR LOWER(COALESCE(extracted_text, '')) LIKE $1)
+      `;
+      const docParams: any[] = [term];
+      if (!isMgmt) {
+        docQ += " AND visibility = 'ALL_SALES'";
+      }
+      docQ += ` ORDER BY created_at DESC LIMIT ${limit}`;
+      const docRows = await queryPostgres(docQ, docParams);
+      docRows.forEach((r: any) => {
+        results.push({
+          id: r.id,
+          type: 'DOCUMENT',
+          title: r.title,
+          subtitle: `${r.product_name || 'Technical Sheet'} • ${r.category}`,
+          badge: r.document_type,
+          url: `/documents?search=${encodeURIComponent(r.title)}`,
+          date: new Date(r.created_at).toLocaleDateString(),
+        });
+      });
+    }
+
+    // 4. Tasks Search
+    if (!entityType || entityType === 'TASK') {
+      let tskQ = `
+        SELECT id, title, description, assigned_to_name, priority, status, due_date
+        FROM operational_tasks
+        WHERE (LOWER(title) LIKE $1 OR LOWER(COALESCE(description, '')) LIKE $1)
+      `;
+      const tskParams: any[] = [term];
+      if (!isMgmt) {
+        tskQ += ' AND assigned_to_id = $2';
+        tskParams.push(user.id);
+      }
+      tskQ += ` ORDER BY due_date ASC LIMIT ${limit}`;
+      const tskRows = await queryPostgres(tskQ, tskParams);
+      tskRows.forEach((r: any) => {
+        results.push({
+          id: r.id,
+          type: 'TASK',
+          title: `Task: ${r.title}`,
+          subtitle: `Assigned to ${r.assigned_to_name} • Priority: ${r.priority}`,
+          badge: r.status,
+          url: `/team`,
+          date: new Date(r.due_date).toLocaleDateString(),
+        });
+      });
+    }
+
+    return results;
+  },
+
+  // ──────────────────────────────────────────────
+  // BACKUP LOGS
+  // ──────────────────────────────────────────────
+  getBackupLogs: async (): Promise<BackupLog[]> => {
+    assertPostgresConfigured();
+    const rows = await queryPostgres('SELECT * FROM backup_logs ORDER BY created_at DESC LIMIT 50');
+    return rows.map(mapBackupLog);
+  },
+
+  recordBackupLog: async (data: {
+    backupType: 'SCHEDULED' | 'MANUAL' | 'EXPORT';
+    status: 'SUCCESS' | 'FAILED' | 'IN_PROGRESS';
+    fileName?: string;
+    fileSizeBytes?: number;
+    storageLocation?: string;
+    errorMessage?: string;
+    triggeredById?: string;
+    triggeredByName?: string;
+  }): Promise<BackupLog> => {
+    assertPostgresConfigured();
+    const id = `bak_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const q = `
+      INSERT INTO backup_logs (
+        id, backup_type, status, file_name, file_size_bytes,
+        storage_location, error_message, triggered_by_id, triggered_by_name, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+      RETURNING *
+    `;
+    const rows = await queryPostgres(q, [
+      id,
+      data.backupType,
+      data.status,
+      data.fileName || null,
+      data.fileSizeBytes || 0,
+      data.storageLocation || null,
+      data.errorMessage || null,
+      data.triggeredById || null,
+      data.triggeredByName || null,
+    ]);
+    return mapBackupLog(rows[0]);
+  },
 };
+
 

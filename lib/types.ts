@@ -186,7 +186,7 @@ export interface Notification {
   message: string;
   orderId?: string;
   orderNumber?: string;
-  type: 'NEW_ORDER' | 'RATE_REVIEW' | 'STATUS_CHANGE' | 'APPROVAL' | 'DELIVERY';
+  type: 'NEW_ORDER' | 'RATE_REVIEW' | 'STATUS_CHANGE' | 'APPROVAL' | 'DELIVERY' | 'REMINDER' | 'ORDER_UPDATE' | 'TASK' | 'SYSTEM';
   read: boolean;
   createdAt: string;
   recipientRoles?: Role[];
@@ -317,3 +317,157 @@ export interface CopilotConversation {
   createdAt: string;
   updatedAt: string;
 }
+
+// ──────────────────────────────────────────────
+// SENIOR-LEVEL FEATURES TYPES
+// ──────────────────────────────────────────────
+
+export type ReminderPurpose = 
+  | 'PAYMENT_COLLECTION' 
+  | 'PAYMENT_DUE' 
+  | 'ORDER_FEEDBACK' 
+  | 'REPEAT_ORDER' 
+  | 'DISPATCH_FOLLOWUP' 
+  | 'DELIVERY_CHECK' 
+  | 'REORDER_INQUIRY' 
+  | 'TECHNICAL_SUPPORT' 
+  | 'GENERAL_FOLLOWUP' 
+  | 'GENERAL';
+
+export type ReminderStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
+
+export interface CustomerReminder {
+  id: string;
+  customerId?: string;
+  customerName?: string;
+  orderId?: string;
+  assignedToId: string;
+  assignedToName: string;
+  createdById: string;
+  createdByName: string;
+  dueDate: string;
+  purpose: ReminderPurpose;
+  notes?: string;
+  status: ReminderStatus;
+  outcomeNotes?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CorrectionRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface OrderCorrectionRequest {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  requestedById: string;
+  requestedByName: string;
+  reason: string;
+  originalValues: any;
+  requestedValues: any;
+  status: CorrectionRequestStatus;
+  decisionNote?: string;
+  reviewedById?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}
+
+export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type TaskStatus = 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+export interface OperationalTask {
+  id: string;
+  title: string;
+  description?: string;
+  assignedToId: string;
+  assignedToName: string;
+  createdById: string;
+  createdByName: string;
+  relatedOrderId?: string;
+  relatedCustomerId?: string;
+  priority: TaskPriority;
+  dueDate: string;
+  status: TaskStatus;
+  completionNotes?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductDocumentLink {
+  id: string;
+  productName: string;
+  productId?: string;
+  documentId: string;
+  documentTitle: string;
+  linkedById: string;
+  linkedByName: string;
+  createdAt: string;
+}
+
+export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'ONLINE' | 'PAY_ORDER';
+export type PaymentType = 'ADVANCE' | 'PARTIAL' | 'FULL' | 'REFUND' | 'CREDIT' | 'CREDIT_SETTLEMENT';
+
+export interface PaymentLedgerEntry {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerId?: string;
+  customerName: string;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: PaymentMethod;
+  referenceNumber?: string;
+  paymentType: PaymentType;
+  notes?: string;
+  recordedById: string;
+  recordedByName: string;
+  createdAt: string;
+}
+
+export type InboxItemType = 'ORDER' | 'TASK' | 'REMINDER' | 'CUSTOMER_REMINDER' | 'CORRECTION' | 'ORDER_CORRECTION' | 'VOICE_ORDER' | 'NOTIFICATION';
+
+export interface InboxItem {
+  id: string;
+  type: InboxItemType;
+  title: string;
+  description: string;
+  entityId?: string;
+  relatedUrl?: string;
+  url?: string;
+  priority?: string;
+  assignedToId?: string;
+  assignedToName?: string;
+  isRead: boolean;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'RESOLVED' | 'ASSIGNED' | 'CANCELLED';
+  createdAt: string;
+  dueDate?: string;
+  meta?: any;
+}
+
+export interface BackupLog {
+  id: string;
+  backupType: 'SCHEDULED' | 'MANUAL' | 'EXPORT' | 'MANUAL_EXPORT' | 'RESTORE_TEST';
+  status: 'SUCCESS' | 'FAILED' | 'IN_PROGRESS';
+  fileName?: string;
+  fileSizeBytes?: number;
+  sizeBytes?: number;
+  storageLocation?: string;
+  errorMessage?: string;
+  details?: string;
+  triggeredById?: string;
+  triggeredByName?: string;
+  createdAt: string;
+}
+
+export interface SearchResult {
+  id: string;
+  type: 'ORDER' | 'CUSTOMER' | 'PRODUCT' | 'DOCUMENT' | 'TASK';
+  title: string;
+  subtitle: string;
+  url: string;
+  metadata?: any;
+}
+
