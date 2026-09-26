@@ -119,7 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_city ON orders(city);
 CREATE TABLE IF NOT EXISTS order_items (
   id VARCHAR(64) PRIMARY KEY,
   order_id VARCHAR(64) NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  product_id VARCHAR(64) REFERENCES products(id),
+  product_id VARCHAR(64),
   product_name VARCHAR(160) NOT NULL,
   packing VARCHAR(64) NOT NULL,
   unit VARCHAR(32) NOT NULL,

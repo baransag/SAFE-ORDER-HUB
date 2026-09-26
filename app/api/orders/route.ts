@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
 
       return {
         id: `itm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        productId: item.productId,
+        productId: product ? product.id : (item.productId && typeof item.productId === 'string' && item.productId.trim() !== '' ? item.productId : null),
         productName: item.productName || (product ? product.name : 'Custom Item'),
         packing: item.packing || (product ? product.defaultPacking : 'Standard'),
         unit: item.unit || (product ? product.unit : 'Unit'),
